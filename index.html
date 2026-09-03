@@ -973,30 +973,30 @@ footer.foot{
    DATA
    ══════════════════════════════════════════════════════════════════════ */
 const OPERATORS = [
+  {id:"ash", name:"Ash", side:"ATT", side_label:"Attack squad", ctu:"FBI SWAT", country:"Israel", speed:3, armor:1, difficulty:2, gadget:"M120 CREM Breaching Rounds", role:"Fast entry fragger, breaches walls from range", nerf:"fires the wall-popping shot from way across the lawn"},
+  {id:"blitz", name:"Blitz", side:"ATT", side_label:"Attack squad", ctu:"GSG 9", country:"Germany", speed:2, armor:2, difficulty:3, gadget:"G52-Tactical Light Shield", role:"Flash-shield rusher who blinds and closes distance", nerf:"blinds the room with a phone torch, then charges straight in"},
+  {id:"deimos", name:"Deimos", side:"ATT", side_label:"Attack squad", ctu:"Rainbow", country:"United States", speed:2, armor:2, difficulty:2, gadget:"Deathmark Tracker", role:"Marks one target and hunts only them", nerf:"picks one person to chase all night and will not be talked out of it"},
+  {id:"grim", name:"Grim", side:"ATT", side_label:"Attack squad", ctu:"NIGHTHAVEN", country:"Singapore", speed:3, armor:1, difficulty:1, gadget:"Kawan Hive Launcher", role:"Floods a room with swarms that tag anyone inside", nerf:"empties a bag of glitter into the room and tags everyone who moves"},
+  {id:"dokkaebi", name:"Dokkaebi", side:"ATT", side_label:"Attack squad", ctu:"707th SMB", country:"South Korea", speed:3, armor:1, difficulty:2, gadget:"Jegeo Payload", role:"Rings every defender phone and steals their cameras", nerf:"rings everyone's phone at once so you always know who is hiding where"},
+  {id:"hibana", name:"Hibana", side:"ATT", side_label:"Attack squad", ctu:"SAT", country:"Japan", speed:3, armor:1, difficulty:1, gadget:"X-KAIROS Launcher", role:"Opens reinforced surfaces from a safe distance", nerf:"pops the taped-up doors open from across the room, no waiting around"},
+  {id:"capitao", name:"Capitão", side:"ATT", side_label:"Attack squad", ctu:"BOPE", country:"Brazil", speed:3, armor:1, difficulty:2, gadget:"Tactical Crossbow", role:"Burns defenders out of cover with the crossbow", nerf:"brings an actual crossbow to a nerf fight and nobody stops him"},
+  {id:"glaz", name:"Glaz", side:"ATT", side_label:"Attack squad", ctu:"Spetsnaz", country:"Russia", speed:3, armor:1, difficulty:2, gadget:"HDS Flip Sight OTs-03 MARKSMAN", role:"Thermal-scope marksman who shoots through smoke", nerf:"camps the high balcony with a scope, calling out everyone's positions"},
   {id:"sledge", name:"Sledge", side:"ATT", side_label:"Attack squad", ctu:"SAS", country:"United Kingdom", speed:2, armor:2, difficulty:1, gadget:"Tactical Breaching Hammer \"The Caber\"", role:"Breaches soft walls and floors with a hammer", nerf:"smashes the piñata barricade open with a foam sledgehammer"},
   {id:"thatcher", name:"Thatcher", side:"ATT", side_label:"Attack squad", ctu:"SAS", country:"United Kingdom", speed:1, armor:3, difficulty:2, gadget:"EG Mk 0-EMP Grenade", role:"Disables defender electronics for the hard breach", nerf:"carries the EMP: unplugs every fan, speaker and fairy light"},
-  {id:"ash", name:"Ash", side:"ATT", side_label:"Attack squad", ctu:"FBI SWAT", country:"Israel", speed:3, armor:1, difficulty:2, gadget:"M120 CREM Breaching Rounds", role:"Fast entry fragger, breaches walls from range", nerf:"fires the wall-popping shot from way across the lawn"},
+  {id:"kali", name:"Kali", side:"ATT", side_label:"Attack squad", ctu:"NIGHTHAVEN", country:"India", speed:2, armor:2, difficulty:2, gadget:"LV Explosive Lance", role:"Long-range rifle that blows gadgets off the wall", nerf:"lines up one enormous shot from the far end of the yard"},
   {id:"thermite", name:"Thermite", side:"ATT", side_label:"Attack squad", ctu:"FBI SWAT", country:"United States", speed:2, armor:2, difficulty:1, gadget:"Brimstone BC-3 Exothermic Charge", role:"Opens reinforced walls for the whole attack", nerf:"burns through the taped-up reinforced door, slowly and very loudly"},
-  {id:"twitch", name:"Twitch", side:"ATT", side_label:"Attack squad", ctu:"GIGN", country:"France", speed:2, armor:2, difficulty:2, gadget:"RSD Model 1 Shock Drone", role:"Drone scout who destroys defender gadgets", nerf:"drives the RC car ahead and zaps traps with it"},
-  {id:"montagne", name:"Montagne", side:"ATT", side_label:"Attack squad", ctu:"GIGN", country:"France", speed:1, armor:3, difficulty:3, gadget:"Extendable Shield \"Le Roc\"", role:"Mobile cover, pushes and gathers intel", nerf:"walks point behind the giant cardboard shield, soaking up darts"},
-  {id:"glaz", name:"Glaz", side:"ATT", side_label:"Attack squad", ctu:"Spetsnaz", country:"Russia", speed:3, armor:1, difficulty:2, gadget:"HDS Flip Sight OTs-03 MARKSMAN", role:"Thermal-scope marksman who shoots through smoke", nerf:"camps the high balcony with a scope, calling out everyone's positions"},
-  {id:"fuze", name:"Fuze", side:"ATT", side_label:"Attack squad", ctu:"Spetsnaz", country:"Uzbekistan", speed:1, armor:3, difficulty:1, gadget:"Matryoshka Cluster Charge", role:"Clears rooms with cluster charges through walls", nerf:"lobs a fistful of darts over the wall, then apologises"},
-  {id:"iq", name:"IQ", side:"ATT", side_label:"Attack squad", ctu:"GSG 9", country:"Germany", speed:3, armor:1, difficulty:3, gadget:"Electronics Detector RED Mk III \"Spectre\"", role:"Spots and removes hidden defender electronics", nerf:"sweeps every room with the detector, finds all the hiding spots"},
-  {id:"blitz", name:"Blitz", side:"ATT", side_label:"Attack squad", ctu:"GSG 9", country:"Germany", speed:2, armor:2, difficulty:3, gadget:"G52-Tactical Light Shield", role:"Flash-shield rusher who blinds and closes distance", nerf:"blinds the room with a phone torch, then charges straight in"},
-  {id:"buck", name:"Buck", side:"ATT", side_label:"Attack squad", ctu:"JTF2", country:"Canada", speed:2, armor:2, difficulty:1, gadget:"Skeleton Key SK 4-12", role:"Vertical play specialist, shoots through floors", nerf:"blasts holes in the ceiling, then shoots down through them"},
-  {id:"blackbeard", name:"Blackbeard", side:"ATT", side_label:"Attack squad", ctu:"Navy SEALs", country:"United States", speed:1, armor:3, difficulty:2, gadget:"H.U.L.L. Adaptable Shield", role:"Shielded angle-holder who wins outside gunfights", nerf:"clips a shield to the blaster and simply refuses to fall"},
-  {id:"smoke", name:"Smoke", side:"DEF", side_label:"Defense squad", ctu:"SAS", country:"United Kingdom", speed:2, armor:2, difficulty:2, gadget:"Compound Z8 Remote Gas Grenade", role:"Denies the plant with toxic gas", nerf:"throws the smoke bomb and refuses to leave the doorway"},
+  {id:"vigil", name:"Vigil", side:"DEF", side_label:"Defense squad", ctu:"707th SMB", country:"South Korea", speed:3, armor:1, difficulty:3, gadget:"ERC-7", role:"Goes invisible to drones and roams behind the attack", nerf:"disappears the second anyone looks, turns up behind you instead"},
+  {id:"ela", name:"Ela", side:"DEF", side_label:"Defense squad", ctu:"GROM", country:"Poland", speed:2, armor:2, difficulty:1, gadget:"Grzmot Mine", role:"Concussion mines that stun anyone walking past", nerf:"sticks air-horn mines on the walls and waits for someone to jog past"},
+  {id:"warden", name:"Warden", side:"DEF", side_label:"Defense squad", ctu:"Secret Service", country:"United States", speed:1, armor:3, difficulty:2, gadget:"Glance Smart Glasses", role:"Sees straight through smoke and flashes", nerf:"wears sunglasses indoors and somehow it genuinely helps"},
+  {id:"lesion", name:"Lesion", side:"DEF", side_label:"Defense squad", ctu:"SDU", country:"Hong Kong", speed:2, armor:2, difficulty:1, gadget:"Gu Mine", role:"Hidden needle mines that slow and drain intruders", nerf:"scatters tiny caltrops in the hallway and nobody sees them coming"},
+  {id:"echo", name:"Echo", side:"DEF", side_label:"Defense squad", ctu:"SAT", country:"Japan", speed:2, armor:2, difficulty:3, gadget:"Yokai Drone", role:"Ceiling drones that disorient anyone underneath", nerf:"hovers a drone over the objective and blasts noise at whoever is below"},
+  {id:"valkyrie", name:"Valkyrie", side:"DEF", side_label:"Defense squad", ctu:"Navy SEALs", country:"United States", speed:2, armor:2, difficulty:2, gadget:"Gyro Cam Mk2 \"Black Eye\"", role:"Places hidden cameras for constant map intel", nerf:"sticks tiny cameras everywhere, including inside the drinks fridge"},
+  {id:"frost", name:"Frost", side:"DEF", side_label:"Defense squad", ctu:"JTF2", country:"Canada", speed:2, armor:2, difficulty:1, gadget:"Sterling Mk2 LHT \"Welcome Mat\"", role:"Traps floors, downing anyone who steps in", nerf:"hides the trap mat under the real doormat, then giggles"},
   {id:"mute", name:"Mute", side:"DEF", side_label:"Defense squad", ctu:"SAS", country:"United Kingdom", speed:2, armor:2, difficulty:1, gadget:"GC90 Signal Disruptor", role:"Jams drones and blocks remote breaching", nerf:"collects everyone's phones so no one can call in a plan"},
+  {id:"doc", name:"Doc", side:"DEF", side_label:"Defense squad", ctu:"GIGN", country:"France", speed:1, armor:3, difficulty:1, gadget:"MPD-0 Stim Pistol", role:"Heals and revives teammates at range", nerf:"revives eliminated teammates with juice boxes and a stim pistol"},
   {id:"castle", name:"Castle", side:"DEF", side_label:"Defense squad", ctu:"FBI SWAT", country:"United States", speed:2, armor:2, difficulty:2, gadget:"UTP1-Universal Tactical Panel", role:"Reinforces doors and windows with armor panels", nerf:"duct-tapes cardboard over every window until nobody can get in"},
   {id:"pulse", name:"Pulse", side:"DEF", side_label:"Defense squad", ctu:"FBI SWAT", country:"United States", speed:3, armor:1, difficulty:3, gadget:"HB-5 Cardiac Sensor", role:"Tracks heartbeats through walls and floors", nerf:"hears you breathing through the wall and calls it out"},
-  {id:"doc", name:"Doc", side:"DEF", side_label:"Defense squad", ctu:"GIGN", country:"France", speed:1, armor:3, difficulty:1, gadget:"MPD-0 Stim Pistol", role:"Heals and revives teammates at range", nerf:"revives eliminated teammates with juice boxes and a stim pistol"},
-  {id:"rook", name:"Rook", side:"DEF", side_label:"Defense squad", ctu:"GIGN", country:"France", speed:1, armor:3, difficulty:1, gadget:"R1N \"Rhino\" Armor Pack", role:"Hands the team extra armor plates", nerf:"hands out spare goggles and vests from a big duffel bag"},
-  {id:"kapkan", name:"Kapkan", side:"DEF", side_label:"Defense squad", ctu:"Spetsnaz", country:"Russia", speed:2, armor:2, difficulty:1, gadget:"Entry Denial Device (EDD Mk II)", role:"Traps entryways with hidden explosive devices", nerf:"rigs silly-string tripwires on every doorframe in the house"},
-  {id:"tachanka", name:"Tachanka", side:"DEF", side_label:"Defense squad", ctu:"Spetsnaz", country:"Russia", speed:1, armor:3, difficulty:1, gadget:"Shumikha Launcher", role:"Area denial with an incendiary grenade launcher", nerf:"holds one corner lobbing foam grenades and never moves once"},
-  {id:"jager", name:"Jäger", side:"DEF", side_label:"Defense squad", ctu:"GSG 9", country:"Germany", speed:3, armor:1, difficulty:2, gadget:"ADS Mk IV \"Magpie\" Active Defense System", role:"Shoots down thrown attacker projectiles", nerf:"snatches incoming darts out of the air with alarming ease"},
-  {id:"bandit", name:"Bandit", side:"DEF", side_label:"Defense squad", ctu:"GSG 9", country:"Germany", speed:3, armor:1, difficulty:1, gadget:"CED-1 Crude Electrical Device \"Shock Wire\"", role:"Electrifies barricades to stop hard breaching", nerf:"tapes the barricades so nobody dares touch a single one"},
-  {id:"frost", name:"Frost", side:"DEF", side_label:"Defense squad", ctu:"JTF2", country:"Canada", speed:2, armor:2, difficulty:1, gadget:"Sterling Mk2 LHT \"Welcome Mat\"", role:"Traps floors, downing anyone who steps in", nerf:"hides the trap mat under the real doormat, then giggles"},
-  {id:"valkyrie", name:"Valkyrie", side:"DEF", side_label:"Defense squad", ctu:"Navy SEALs", country:"United States", speed:2, armor:2, difficulty:2, gadget:"Gyro Cam Mk2 \"Black Eye\"", role:"Places hidden cameras for constant map intel", nerf:"sticks tiny cameras everywhere, including inside the drinks fridge"}
+  {id:"kapkan", name:"Kapkan", side:"DEF", side_label:"Defense squad", ctu:"Spetsnaz", country:"Russia", speed:2, armor:2, difficulty:1, gadget:"Entry Denial Device (EDD Mk II)", role:"Traps entryways with hidden explosive devices", nerf:"rigs silly-string tripwires on every doorframe in the house"}
 ];
 
 const CFG = window.CONFIG;
@@ -1514,11 +1514,14 @@ function sheetError(msg){
 /* ══════════════════════════════════════════════════════════════════════
    ACTIONS
    ══════════════════════════════════════════════════════════════════════ */
-async function doClaim(op){
-  if (state.busy) return;
+async function doClaim(op, retry){
+  if (state.busy && !retry) return;
   state.busy = true;
 
-  const from = state.swapping ? myClaim() : null;
+  // A retry always goes down the claim path. If the first attempt's swap did
+  // land, the server sees this guest already holding the target and returns it
+  // with the token; if it did not land, they still hold what they had.
+  const from = (state.swapping && !retry) ? myClaim() : null;
   const ctaText = from ? 'Swap to ' + op.name : 'Lock in ' + op.name;
   const go0 = $('#shGo');
   if (go0){ go0.disabled = true; go0.textContent = from ? 'Swapping…' : 'Claiming…'; }
@@ -1548,6 +1551,29 @@ async function doClaim(op){
   // round trip the sheet may have been rebuilt, and writing to a detached node
   // puts the answer somewhere nobody is looking.
   const go = (sheetOpen === op.id) ? $('#shGo') : null;
+
+  // An ok with no claim in it is not an answer to the question we asked. Ask
+  // once more rather than guess. The retry is always a claim, never a swap: the
+  // nonce this phone stores is stable, so if the first attempt did land the
+  // server recognises this device and hands back the matching release token,
+  // and if it did not land this is simply the pick, tried again.
+  if (res.ok && !res.claim && !retry) return doClaim(op, true);
+
+  if (res.ok && !res.claim){
+    // Second answer was no better. Read the board and tell the truth about it.
+    if (go){ go.disabled = false; go.textContent = ctaText; }
+    state.v = -1;
+    await refresh(true);
+    const held = myClaim();
+    if (held && held.op === op.id){
+      state.swapping = false;
+      closeSheet(); paint(); show('done');
+      say(op.name + ' is yours.');
+    } else {
+      sheetError('The server answered, but not about your pick. Tap again.');
+    }
+    return;
+  }
 
   if (res.ok){
     if (res.token) setToken(res.token);
@@ -1608,7 +1634,9 @@ async function doClaim(op){
     if (res.token) setToken(res.token);
     state.swapping = false;
     closeSheet(); paint(); show('done');
-    say('You already hold an operator.');
+    say(res.claim && res.claim.op === op.id
+      ? op.name + ' is yours.'
+      : 'You already hold ' + ((res.claim && res.claim.opName) || 'an operator') + '.');
     return;
   }
 
