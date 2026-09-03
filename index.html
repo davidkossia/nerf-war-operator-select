@@ -1,0 +1,1884 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0C0F16">
+<title>Operator Selection</title>
+<meta name="description" content="Claim your operator. One each, first tap wins.">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62.5,600;62.5,700;62.5,800;100,500&family=Inter:wght@400;500;600;700&display=swap">
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     CONFIG — everything you need to edit lives in this one block.
+     See docs/SETUP.md for the full walkthrough.
+     ══════════════════════════════════════════════════════════════════════ -->
+<script>
+window.CONFIG = {
+
+  /* 1. Paste your Apps Script Web App URL here. It must end in /exec .
+        Leave it exactly as-is to run in DEMO MODE, where claims are stored
+        only in this browser so you can click the whole thing through
+        before the backend exists. A banner shows when demo mode is on. */
+  API_URL: 'https://script.google.com/macros/s/AKfycbxPqxTNcXnz_KWKq_Pb9DfWRqtCVzZyEmav0VUxEg6_n1qZGL6sWvyC3vV5yQDW689iuQ/exec',
+
+  /* 2. The party code is NOT here on purpose.
+        It lives only in the Config sheet, and the server is what checks it.
+        Putting a copy here would print it in the page source for anyone who
+        opens the file, which is exactly what you are trying to avoid.
+        To change the code, edit the Config tab in the Sheet. It takes effect
+        immediately, with no redeploy and no change to this file. */
+
+  /* 3. The guest list. The id column MUST match the Players sheet.
+        Do not renumber these. Change only the names. */
+  PLAYERS: [
+    { id: 'p01', name: 'Rahzar'   }, { id: 'p02', name: 'David'    },
+    { id: 'p03', name: 'Sean'     }, { id: 'p04', name: 'Pablo'    },
+    { id: 'p05', name: 'Juno'     }, { id: 'p06', name: 'TJ'       },
+    { id: 'p07', name: 'Nelun'    }, { id: 'p08', name: 'Nelson'   },
+    { id: 'p09', name: 'Leighton' }, { id: 'p10', name: 'Juan'     },
+    { id: 'p11', name: 'Joseph'   }, { id: 'p12', name: 'Cole'     },
+    { id: 'p13', name: 'Ethan G'  }, { id: 'p14', name: 'Dylan'    },
+    { id: 'p15', name: 'Michael'  }, { id: 'p16', name: 'Ken'      },
+    { id: 'p17', name: 'Chris'    }, { id: 'p18', name: 'Mo'       },
+    { id: 'p19', name: 'Sunbola'  }, { id: 'p20', name: 'Colin'    },
+    { id: 'p21', name: 'Evan'     }, { id: 'p22', name: 'Ethan E'  },
+    { id: 'p23', name: 'Darrell'  }, { id: 'p24', name: 'Joon'     }
+  ],
+
+  /* 4. The party. Shown on the way in and again after someone claims. */
+  EVENT: {
+    title:    'OPERATION: JAHZAR',
+    subtitle: 'BACHELOR PARTY / NERF WAR',
+    date:     'FRIDAY 30 OCTOBER',
+    time:     '18:00',
+    location: 'BROKEN BOW, OK',
+    brief: [
+      'Your operator decides your squad. Attackers and defenders, twelve a side.',
+      'Eye protection is mandatory. No headshots, no point blank.',
+      'Bring the operator energy. Leave the actual breaching charges at home.'
+    ]
+  }
+};
+</script>
+
+<style>
+/* ═══════════════════════════ TOKENS ═══════════════════════════ */
+:root{
+  --void:#0C0F16; --surface-1:#12161F; --surface-2:#171C27;
+  --surface-3:#1E2430; --surface-4:#252C3A; --surface-taken:#101420;
+
+  --text-hi:#E8ECF2; --text:#B0BAC6; --text-mute:#8B95A6;
+  /* --text-dim carries real text in seven places, so it has to clear AA, not
+     just look quiet. #78849A measures 5.08:1 on --void and 4.80:1 on
+     --surface-1, and still reads a step below --text-mute. */
+  --text-dim:#78849A; --text-taken:#78839A; --text-claimant:#98A2B3;
+
+  --line:#232A36; --line-2:#2E3746; --line-strong:#6E798D;
+
+  --attack:#FF3D2C; --attack-hi:#FF6A55; --attack-deep:#4A130C;
+  --defense:#4DA3FF; --defense-hi:#7CBEFF; --defense-deep:#0E2A4A;
+
+  --ok:#2FD07A; --warn:#F2B33D; --focus:#7FE3FF;
+  --sel-attack:#332028; --sel-defense:#1E2C41;
+
+  --shadow-1:0 1px 2px rgba(0,0,0,.5);
+  --shadow-2:0 6px 18px -6px rgba(0,0,0,.72), 0 2px 4px rgba(0,0,0,.4);
+  --shadow-3:0 18px 44px -12px rgba(0,0,0,.85), 0 4px 10px rgba(0,0,0,.5);
+  --glow-attack:0 0 0 1px rgba(255,61,44,.5), 0 8px 30px -10px rgba(255,61,44,.45);
+  --glow-defense:0 0 0 1px rgba(77,163,255,.5), 0 8px 30px -10px rgba(77,163,255,.45);
+
+  --font-display:"Archivo","Archivo Narrow","Saira Condensed","Barlow Condensed",
+                 "Avenir Next Condensed","Arial Narrow","Roboto Condensed",system-ui,sans-serif;
+  --font-body:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --font-mono:ui-monospace,"SF Mono","Cascadia Mono",Menlo,Consolas,monospace;
+
+  --chamfer:14px;
+  --dur-1:120ms; --dur-2:180ms; --dur-3:300ms;
+  --ease-out:cubic-bezier(.22,.61,.36,1);
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--void); color:var(--text);
+  font:400 15px/1.55 var(--font-body);
+  -webkit-font-smoothing:antialiased;
+  overflow-wrap:break-word;
+}
+body.is-locked{overflow:hidden}
+[hidden]{display:none!important}
+img{max-width:100%}
+
+.mono{font-family:var(--font-mono)}
+.u-label{
+  font:700 11px/1 var(--font-body); letter-spacing:.18em;
+  text-transform:uppercase; color:var(--attack);
+}
+.u-sr{
+  position:absolute!important; width:1px; height:1px; padding:0; margin:-1px;
+  overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;
+}
+:focus-visible{outline:3px solid var(--focus); outline-offset:2px; border-radius:2px}
+
+/* ═══════════════════════════ CHROME ═══════════════════════════ */
+.wrap{max-inline-size:1360px; margin-inline:auto; padding-inline:var(--pad-x,14px)}
+
+.topbar{
+  position:sticky; top:0; z-index:40;
+  background:rgba(12,15,22,.92);
+  backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+  border-block-end:1px solid var(--line);
+}
+.topbar__in{
+  display:flex; align-items:center; gap:12px;
+  min-block-size:56px; padding-block:8px;
+}
+.brand{display:flex; align-items:baseline; gap:8px; min-inline-size:0}
+.brand__mark{
+  font:800 20px/1 var(--font-display); font-stretch:62.5%;
+  letter-spacing:.02em; color:var(--text-hi); text-transform:uppercase;
+  white-space:nowrap;
+}
+.brand__mark b{color:var(--attack); font-weight:800}
+.brand__sub{
+  font:600 10px/1 var(--font-body); letter-spacing:.2em;
+  color:var(--text-dim); text-transform:uppercase;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.topbar__spacer{flex:1 1 auto}
+
+.count{
+  display:flex; align-items:baseline; gap:6px;
+  font:700 13px/1 var(--font-mono); color:var(--text-mute);
+  font-variant-numeric:tabular-nums; white-space:nowrap;
+}
+.count b{font-size:17px; color:var(--text-hi)}
+/* The 375px bar holds brand + count + Roster. The subtitle and the word
+   "claimed" are the two things that can go without losing meaning. */
+@media (max-width:559px){
+  .brand__sub{display:none}
+  .count .count__word{display:none}
+}
+
+.btn{
+  all:unset; box-sizing:border-box; display:inline-flex; align-items:center;
+  justify-content:center; gap:8px; cursor:pointer;
+  font:700 12px/1 var(--font-body); letter-spacing:.14em; text-transform:uppercase;
+  min-block-size:44px; padding-inline:16px;
+  border:1px solid var(--line-strong); color:var(--text-hi);
+  background:var(--surface-2);
+  clip-path:polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
+  transition:background var(--dur-2) var(--ease-out), color var(--dur-2) var(--ease-out);
+}
+.btn:active{transform:scale(.985)}
+.btn--sm{min-block-size:40px; padding-inline:13px; font-size:11px}
+.btn--primary{background:var(--attack); border-color:var(--attack); color:var(--void)}
+.btn--defense{background:var(--defense); border-color:var(--defense); color:var(--void)}
+.btn--ghost{background:transparent; border-color:var(--line-2); color:var(--text-mute)}
+.btn--block{display:flex; inline-size:100%; min-block-size:56px; font-size:14px}
+
+/* Hover only where a pointer exists. On a phone a tap leaves the element in
+   :hover, and an attribute+class+pseudo hover rule outranks .btn--primary,
+   which used to repaint the pressed confirm button the colour of the sheet. */
+@media (hover:hover) and (pointer:fine){
+  .btn:hover{background:var(--surface-3)}
+  .btn--primary:hover{background:var(--attack-hi); border-color:var(--attack-hi)}
+  .btn--defense:hover{background:var(--defense-hi); border-color:var(--defense-hi)}
+  .btn--ghost:hover{background:var(--surface-2); color:var(--text-hi)}
+}
+
+/* Disabled has to stay legible: it is what the guest looks at for the whole
+   round trip while the claim is in flight. */
+.btn[disabled]{opacity:.72; cursor:progress; filter:saturate(.55)}
+
+/* `all:unset` above resets outline, and it is declared after the global
+   :focus-visible rule at equal specificity, so it wins on source order and
+   the ring never paints. The clip-path would eat an outline anyway, so draw
+   the ring inside the border box where the polygon cannot reach it. */
+.btn:focus-visible, .seg__btn:focus-visible, .sheet__close:focus-visible{
+  outline:none;
+  box-shadow:inset 0 0 0 2px var(--void), inset 0 0 0 5px var(--focus);
+}
+
+/* ═══════════════════════════ GATE ═══════════════════════════ */
+.gate{
+  min-block-size:100svh; display:grid; place-items:center;
+  padding:28px 18px calc(28px + env(safe-area-inset-bottom));
+  position:relative; overflow:hidden;
+}
+.gate::before{
+  content:""; position:absolute; inset:0; pointer-events:none;
+  background:
+    radial-gradient(120% 70% at 50% -10%, rgba(255,61,44,.14) 0%, transparent 58%),
+    radial-gradient(90% 60% at 88% 108%, rgba(77,163,255,.11) 0%, transparent 62%);
+}
+.gate::after{
+  content:""; position:absolute; inset:0; pointer-events:none; opacity:.5;
+  background:repeating-linear-gradient(90deg, rgba(232,236,242,.028) 0 1px, transparent 1px 5px);
+  mask-image:linear-gradient(180deg, transparent, #000 30%, #000 70%, transparent);
+  -webkit-mask-image:linear-gradient(180deg, transparent, #000 30%, #000 70%, transparent);
+}
+.gate__card{position:relative; inline-size:100%; max-inline-size:440px}
+
+.gate__eyebrow{
+  display:flex; align-items:center; gap:10px; margin-block-end:14px;
+}
+.gate__eyebrow::after{content:""; flex:1; height:1px; background:var(--line-2)}
+.gate__title{
+  margin:0; font:800 clamp(52px,17vw,84px)/.86 var(--font-display);
+  font-stretch:62.5%; letter-spacing:-.01em; text-transform:uppercase;
+  color:var(--text-hi);
+}
+.gate__sub{
+  margin:12px 0 0; font:600 12px/1.5 var(--font-body);
+  letter-spacing:.2em; text-transform:uppercase; color:var(--text-mute);
+}
+.gate__rule{block-size:1px; background:var(--line-2); margin-block:22px}
+.gate__meta{
+  display:grid; grid-template-columns:auto 1fr; gap:7px 16px;
+  font:500 13px/1.4 var(--font-body); margin-block-end:24px;
+}
+.gate__meta dt{
+  font:700 10px/1.5 var(--font-body); letter-spacing:.18em;
+  text-transform:uppercase; color:var(--attack);
+}
+.gate__meta dd{margin:0; color:var(--text-hi); font-weight:600}
+
+.field{margin-block-end:16px}
+.field__label{
+  display:block; margin-block-end:7px;
+  font:700 10px/1 var(--font-body); letter-spacing:.18em;
+  text-transform:uppercase; color:var(--text-mute);
+}
+.input, .select{
+  inline-size:100%; min-block-size:52px; padding:0 14px;
+  background:var(--surface-1); color:var(--text-hi);
+  border:1px solid var(--line-strong); border-radius:0;
+  font:600 16px/1 var(--font-body);
+  appearance:none; -webkit-appearance:none;
+}
+.input::placeholder{color:var(--text-dim); font-weight:500}
+.input:focus-visible, .select:focus-visible{
+  outline:3px solid var(--focus); outline-offset:2px; border-color:var(--focus);
+}
+.select{
+  background-image:linear-gradient(45deg,transparent 50%,var(--text-mute) 50%),
+                   linear-gradient(135deg,var(--text-mute) 50%,transparent 50%);
+  background-position:calc(100% - 19px) 23px, calc(100% - 13px) 23px;
+  background-size:6px 6px, 6px 6px; background-repeat:no-repeat;
+  padding-inline-end:38px;
+  text-transform:uppercase; letter-spacing:.06em;
+}
+.input.is-bad, .select.is-bad{border-color:var(--attack); box-shadow:inset 0 0 0 1px var(--attack)}
+.gate__hint{
+  margin:8px 0 0; font:500 12px/1.5 var(--font-body); color:var(--text-mute);
+}
+.gate__hint b{color:var(--text-hi)}
+.linkbtn{
+  all:unset; cursor:pointer; color:var(--attack-hi); font-weight:700;
+  text-decoration:underline; text-underline-offset:3px;
+}
+.linkbtn:focus-visible{outline:3px solid var(--focus); outline-offset:2px}
+
+.gate__err{
+  margin:0 0 14px; padding:11px 13px;
+  background:var(--attack-deep); border-inline-start:3px solid var(--attack);
+  color:#FFD9D4; font:600 13px/1.45 var(--font-body);
+}
+.gate__foot{
+  margin-block-start:18px; font:500 12px/1.5 var(--font-body); color:var(--text-dim);
+}
+
+/* ═══════════════════════════ DEMO BANNER ═══════════════════════════ */
+.demo{
+  position:relative; z-index:50;
+  background:var(--warn); color:var(--void);
+  font:700 11px/1.4 var(--font-body); letter-spacing:.1em; text-transform:uppercase;
+  text-align:center; padding:8px 14px;
+}
+
+/* ═══════════════════════════ SWAP BAR ═══════════════════════════ */
+.swapbar{
+  display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+  margin-block-start:14px; padding:12px 14px;
+  background:var(--surface-2); border-inline-start:3px solid var(--warn);
+}
+.swapbar__txt{display:flex; flex-direction:column; gap:3px; flex:1 1 200px; min-inline-size:0}
+.swapbar__lead{
+  font:700 10px/1 var(--font-body); letter-spacing:.18em;
+  text-transform:uppercase; color:var(--warn);
+}
+.swapbar__note{font:500 13px/1.4 var(--font-body); color:var(--text)}
+.swapbar__note b{color:var(--text-hi); font-weight:700}
+
+/* ═══════════════════════════ FILTER ═══════════════════════════ */
+.controls{
+  display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+  padding-block:18px 14px;
+}
+.seg{display:flex; gap:6px; inline-size:100%}
+.seg__btn{
+  all:unset; box-sizing:border-box; cursor:pointer;
+  display:inline-flex; align-items:center; gap:7px;
+  min-block-size:48px; min-inline-size:104px; padding-inline:15px;
+  justify-content:center;
+  font:700 12px/1 var(--font-body); letter-spacing:.16em; text-transform:uppercase;
+  color:var(--text-mute); background:var(--surface-1);
+  border:1px solid var(--line-2);
+  clip-path:polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 11px 100%, 0 calc(100% - 11px));
+  transition:color var(--dur-2) var(--ease-out), background var(--dur-2) var(--ease-out);
+}
+@media (hover:hover) and (pointer:fine){
+  .seg__btn:hover{color:var(--text-hi); background:var(--surface-2)}
+}
+.seg__btn[aria-pressed="true"]{color:var(--text-hi); background:var(--surface-3); border-color:var(--line-strong)}
+.seg__btn[data-side="ATT"][aria-pressed="true"]{border-color:var(--attack); box-shadow:inset 0 -3px 0 var(--attack)}
+.seg__btn[data-side="DEF"][aria-pressed="true"]{border-color:var(--defense); box-shadow:inset 0 -3px 0 var(--defense)}
+.seg__n{font:700 11px/1 var(--font-mono); color:var(--text-dim); font-variant-numeric:tabular-nums}
+.seg__btn[aria-pressed="true"] .seg__n{color:var(--text-mute)}
+/* At 375px three 104px pills plus gaps overflow the padded row. Let them
+   share the width instead of spilling past the right edge. */
+@media (max-width:559px){
+  .seg__btn{flex:1 1 0; min-inline-size:0; padding-inline:6px; gap:5px; letter-spacing:.08em}
+}
+
+/* ═══════════════════════════ GRID ═══════════════════════════ */
+.roster{
+  list-style:none; margin:0 0 40px; padding:0;
+  display:grid; gap:var(--grid-gap,10px);
+  grid-template-columns:repeat(var(--cols,2), minmax(0,1fr));
+}
+:root{--cols:2; --grid-gap:10px; --pad-x:14px}
+@media (min-width:480px){ :root{--grid-gap:12px; --pad-x:20px} }
+@media (min-width:600px){ :root{--cols:3; --grid-gap:14px; --pad-x:24px} }
+@media (min-width:900px){ :root{--cols:4; --grid-gap:16px; --pad-x:32px; --chamfer:18px} }
+@media (min-width:1200px){ :root{--cols:6; --grid-gap:18px; --pad-x:40px} }
+@media (min-width:1440px){ :root{--grid-gap:20px} }
+
+/* ═══════════════════════════ CARD ═══════════════════════════ */
+.op{
+  position:relative; min-block-size:176px;
+  content-visibility:auto; contain-intrinsic-size:auto 215px;
+  scroll-margin-block-start:74px;
+}
+.op__btn{
+  all:unset; box-sizing:border-box; cursor:pointer;
+  display:flex; flex-direction:column;
+  inline-size:100%; block-size:100%; aspect-ratio:3/4;
+  -webkit-tap-highlight-color:transparent;
+  box-shadow:var(--shadow-1);
+  transition:transform var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out);
+}
+.op__plate{
+  position:relative; flex:0 0 62%; overflow:hidden;
+  clip-path:polygon(0 0, calc(100% - var(--chamfer)) 0, 100% var(--chamfer), 100% 100%, 0 100%);
+  background:
+    radial-gradient(128% 88% at 78% -8%,
+      hsl(var(--op-hue) 68% 48% / .20) 0%,
+      hsl(var(--op-hue) 60% 40% / .06) 44%, transparent 70%),
+    linear-gradient(158deg,#1E2430 0%,#171C27 46%,#10141C 100%);
+  transition:background var(--dur-2) var(--ease-out);
+}
+.op[data-side="DEF"] .op__plate{
+  clip-path:polygon(var(--chamfer) 0, 100% 0, 100% 100%, 0 100%, 0 var(--chamfer));
+}
+.op__plate::before{
+  content:""; position:absolute; inset:0; pointer-events:none;
+  background:repeating-linear-gradient(90deg, rgba(232,236,242,.030) 0 1px, transparent 1px 4px);
+  mask-image:linear-gradient(180deg,#000 0%,rgba(0,0,0,.35) 58%,transparent 92%);
+  -webkit-mask-image:linear-gradient(180deg,#000 0%,rgba(0,0,0,.35) 58%,transparent 92%);
+}
+.op__plate::after{
+  content:""; position:absolute; top:0; right:0;
+  inline-size:var(--chamfer); block-size:var(--chamfer); pointer-events:none;
+  background:linear-gradient(225deg, var(--attack) 0 1.5px, transparent 1.5px);
+}
+.op[data-side="DEF"] .op__plate::after{
+  right:auto; left:0;
+  background:linear-gradient(135deg, var(--defense) 0 1.5px, transparent 1.5px);
+}
+/* The numeral bleeds off the chamfer on purpose, but it has to still read as
+   a number. Kept small enough that the digits survive the crop. */
+.op__idx{
+  position:absolute; top:-5%; right:-1%;
+  font:800 clamp(46px,29cqw,84px)/.78 var(--font-display); font-stretch:62.5%;
+  letter-spacing:-.05em; color:transparent;
+  font-variant-numeric:tabular-nums;
+  -webkit-text-stroke:1.3px rgba(232,236,242,.17);
+  user-select:none; pointer-events:none;
+}
+.op[data-side="DEF"] .op__idx{right:auto; left:-1%}
+
+/* The unit. Real information, and it stops the plate reading as empty. */
+.op__ctu{
+  position:absolute; top:9px; left:11px;
+  font:700 8px/1 var(--font-body); letter-spacing:.2em;
+  text-transform:uppercase;
+  color:var(--text-mute); pointer-events:none;
+  max-inline-size:60%; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;
+}
+.op[data-side="DEF"] .op__ctu{left:auto; right:11px; text-align:end}
+
+.op__emblem{
+  position:absolute; bottom:16px; left:11px;
+  inline-size:42px; block-size:42px; pointer-events:none;
+  filter:drop-shadow(0 0 7px hsl(var(--op-hue) 85% 52% / .40));
+}
+.op[data-side="DEF"] .op__emblem{left:auto; right:11px}
+/* Scoped to the classes, not to the card, because the same emblem markup is
+   reused in the confirm sheet and on the confirmation screen. */
+.em-shape{
+  fill:none; stroke:hsl(var(--op-hue) 78% 72% / .95);
+  stroke-linecap:square; stroke-linejoin:miter;
+  transition:stroke var(--dur-2) var(--ease-out);
+}
+.em-ltr{
+  fill:var(--text-hi); opacity:.9;
+  font:800 16px/1 var(--font-display); font-stretch:62.5%;
+  text-anchor:middle; letter-spacing:0;
+}
+
+.op__name-plate{
+  position:relative; flex:1 1 38%;
+  display:flex; flex-direction:column;
+  background:var(--surface-1); border-block-start:1px solid var(--line-2);
+  padding:9px 9px 9px 13px; min-inline-size:0;
+}
+.op[data-side="DEF"] .op__name-plate{padding:9px 13px 9px 9px}
+.op__rail{
+  position:absolute; inset-block:0; inset-inline-start:0;
+  inline-size:3px; background:var(--attack);
+  transition:inline-size var(--dur-2) var(--ease-out);
+}
+.op[data-side="DEF"] .op__rail{inset-inline-start:auto; inset-inline-end:0; background:var(--defense)}
+.op__name{
+  font:700 clamp(17px,11cqw,24px)/1.02 var(--font-display); font-stretch:62.5%;
+  letter-spacing:.01em; text-transform:uppercase; color:var(--text-hi);
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+  overflow:hidden; overflow-wrap:anywhere;
+}
+.op__row2{
+  display:flex; align-items:center; justify-content:space-between;
+  gap:8px; margin-block-start:auto; min-inline-size:0;
+}
+.pips{display:flex; gap:2px; align-items:center}
+.pips-label{
+  font:600 9px/1 var(--font-body); letter-spacing:.14em;
+  color:var(--text-mute); margin-inline-end:4px;
+}
+.pip{
+  inline-size:6px; block-size:12px; transform:skewX(-14deg);
+  border-radius:1px; background:rgba(232,236,242,.10);
+  box-shadow:inset 0 0 0 1px rgba(232,236,242,.16);
+}
+.pip.is-on{background:var(--text-hi); box-shadow:none}
+.pips--arm{flex-direction:row-reverse}
+.pips--arm .pip{transform:skewX(14deg)}
+.pips--arm .pips-label{margin-inline:4px 0}
+.op__statwrap{display:flex; gap:9px; align-items:center; flex-wrap:wrap}
+.op__status{
+  font:700 9px/1 var(--font-body); letter-spacing:.14em;
+  text-transform:uppercase; color:var(--ok);
+  display:inline-flex; align-items:center; gap:4px; white-space:nowrap;
+}
+.op__status::before{
+  content:""; inline-size:6px; block-size:6px; background:var(--ok);
+  transform:rotate(45deg); flex:0 0 auto;
+}
+
+/* At two-up on a phone the card is ~161-169px and the row reads
+   SPD ▮▮▮ ▮▮▮ ARM · AVAILABLE, which never fits and orphans ARM onto its own
+   line. The two 26px text labels are the cheapest thing to lose: the pips
+   already differ by skew direction and fill order. */
+@container (max-width:210px){
+  .pips-label{display:none}
+  .op__statwrap{gap:7px}
+  .op__row2{gap:6px}
+}
+
+/* Board frozen by the host. */
+.op[data-state="closed"] .op__plate{filter:saturate(.2) brightness(.85)}
+.op[data-state="closed"] .op__btn{cursor:not-allowed}
+.op[data-state="closed"] .op__status{color:var(--text-mute)}
+.op[data-state="closed"] .op__status::before{background:var(--text-mute)}
+
+/* Before the first server response lands, the board is not yet fact. */
+.roster.is-pending{opacity:.5; pointer-events:none}
+.banner{
+  display:flex; align-items:center; gap:10px;
+  margin-block-start:14px; padding:12px 14px;
+  background:var(--surface-2); border-inline-start:3px solid var(--warn);
+  font:600 13px/1.4 var(--font-body); color:var(--text);
+}
+.banner--bad{border-inline-start-color:var(--attack); background:var(--attack-deep); color:#FFD9D4}
+
+/* --- hover, desktop only --- */
+@media (hover:hover) and (pointer:fine){
+  .op:not([data-state="taken"]) .op__btn:hover{transform:translateY(-3px); box-shadow:var(--shadow-2)}
+  .op:not([data-state="taken"]) .op__btn:hover .op__plate{
+    background:
+      radial-gradient(128% 88% at 78% -8%,
+        hsl(var(--op-hue) 68% 48% / .32) 0%,
+        hsl(var(--op-hue) 60% 40% / .09) 44%, transparent 70%),
+      linear-gradient(158deg,#252C3A 0%,#171C27 46%,#10141C 100%);
+  }
+  .op:not([data-state="taken"]) .op__btn:hover .em-shape{stroke:hsl(var(--op-hue) 70% 70% / 1)}
+  .op:not([data-state="taken"]) .op__btn:hover .op__idx{-webkit-text-stroke-color:rgba(232,236,242,.22)}
+}
+.op__btn:active{transform:translateY(0) scale(.985); filter:brightness(1.08)}
+
+/* --- focus ring, drawn outside the clip --- */
+.op__btn:focus-visible{outline:none}
+.op:has(.op__btn:focus-visible)::after{
+  content:""; position:absolute; inset:-5px; z-index:3; pointer-events:none;
+  border:2px solid var(--void);
+  box-shadow:inset 0 0 0 3px var(--focus);
+}
+
+/* --- selected --- */
+.op[data-state="mine"] .op__plate{
+  background:
+    radial-gradient(128% 88% at 78% -8%, hsl(var(--op-hue) 68% 48% / .30) 0%, transparent 70%),
+    linear-gradient(158deg,var(--sel-attack) 0%,#171C27 70%);
+}
+.op[data-side="DEF"][data-state="mine"] .op__plate{
+  background:
+    radial-gradient(128% 88% at 78% -8%, hsl(var(--op-hue) 68% 48% / .30) 0%, transparent 70%),
+    linear-gradient(158deg,var(--sel-defense) 0%,#171C27 70%);
+}
+.op[data-state="mine"] .op__btn{box-shadow:var(--shadow-2), var(--glow-attack); transform:translateY(-2px)}
+.op[data-side="DEF"][data-state="mine"] .op__btn{box-shadow:var(--shadow-2), var(--glow-defense)}
+.op[data-state="mine"] .op__rail{inline-size:5px; box-shadow:0 0 12px -2px var(--attack)}
+.op[data-side="DEF"][data-state="mine"] .op__rail{box-shadow:0 0 12px -2px var(--defense)}
+.op[data-state="mine"] .op__name-plate{background:var(--sel-attack)}
+.op[data-side="DEF"][data-state="mine"] .op__name-plate{background:var(--sel-defense)}
+.op[data-state="mine"] .op__idx{color:hsl(var(--op-hue) 70% 60% / .13); -webkit-text-stroke:0}
+.op[data-state="mine"] .op__status{color:var(--void); background:var(--attack); padding:4px 7px}
+.op[data-side="DEF"][data-state="mine"] .op__status{background:var(--defense)}
+.op[data-state="mine"] .op__status::before{background:var(--void)}
+
+/* --- taken --- */
+.op[data-state="taken"] .op__plate{
+  background:linear-gradient(158deg,#151A24 0%,#101420 100%);
+  filter:saturate(.12);
+}
+.op[data-state="taken"] .op__plate::before{
+  background:repeating-linear-gradient(45deg, rgba(232,236,242,.075) 0 2px, transparent 2px 7px);
+  mask-image:none; -webkit-mask-image:none;
+}
+.op[data-state="taken"] .op__plate::after{background:linear-gradient(225deg,var(--line-strong) 0 1.5px,transparent 1.5px)}
+.op[data-side="DEF"][data-state="taken"] .op__plate::after{background:linear-gradient(135deg,var(--line-strong) 0 1.5px,transparent 1.5px)}
+.op[data-state="taken"] .op__btn{cursor:not-allowed; box-shadow:inset 0 1px 0 rgba(0,0,0,.6)}
+.op[data-state="taken"] .op__name-plate{background:var(--surface-taken)}
+.op[data-state="taken"] .op__name{color:var(--text-taken)}
+.op[data-state="taken"] .op__rail{
+  background:repeating-linear-gradient(180deg, var(--line-strong) 0 4px, transparent 4px 8px);
+  box-shadow:none;
+}
+.op[data-state="taken"] .em-shape{stroke:rgba(232,236,242,.18)}
+.op[data-state="taken"] .op__idx{-webkit-text-stroke-color:rgba(232,236,242,.07)}
+.op[data-state="taken"] .pip.is-on{background:var(--text-taken)}
+.op[data-state="taken"] .pip{background:rgba(232,236,242,.06)}
+.op__claim{
+  display:none; margin-block-start:6px; padding-block-start:5px;
+  border-block-start:1px solid var(--line-2);
+  font:600 11px/1.2 var(--font-body); color:var(--text-claimant);
+  text-transform:uppercase; letter-spacing:.04em;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.op[data-state="taken"] .op__claim{display:flex; align-items:center; gap:5px}
+.op[data-state="taken"] .op__row2 .op__status{display:none}
+.lock-ico{flex:0 0 auto}
+
+.op.is-shake{animation:shake 420ms var(--ease-out)}
+@keyframes shake{
+  0%,100%{transform:translateX(0)} 15%{transform:translateX(-6px)}
+  30%{transform:translateX(5px)} 45%{transform:translateX(-4px)}
+  60%{transform:translateX(3px)} 75%{transform:translateX(-2px)}
+}
+
+/* ═══════════════════════════ SHEET / MODAL ═══════════════════════════ */
+.scrim{
+  position:fixed; inset:0; z-index:60; background:rgba(6,8,12,.78);
+  backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px);
+  display:flex; align-items:flex-end; justify-content:center;
+  animation:fade var(--dur-2) var(--ease-out);
+}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+@media (min-width:700px){ .scrim{align-items:center; padding:24px} }
+
+.sheet{
+  inline-size:100%; max-inline-size:540px; max-block-size:92svh; overflow:auto;
+  background:var(--surface-2); border:1px solid var(--line-strong);
+  border-block-end:0; padding:20px 18px calc(20px + env(safe-area-inset-bottom));
+  animation:rise var(--dur-3) var(--ease-out);
+}
+@media (min-width:700px){ .sheet{border-block-end:1px solid var(--line-strong); padding-block-end:20px} }
+@keyframes rise{from{transform:translateY(14px); opacity:0}to{transform:none; opacity:1}}
+
+.sheet__head{display:flex; align-items:flex-start; gap:12px; margin-block-end:4px}
+.sheet__eyebrow{
+  font:700 10px/1 var(--font-body); letter-spacing:.2em; text-transform:uppercase;
+  color:var(--attack); margin-block-end:8px;
+}
+.sheet[data-side="DEF"] .sheet__eyebrow{color:var(--defense)}
+.sheet__name{
+  margin:0; font:800 clamp(34px,10vw,52px)/.9 var(--font-display); font-stretch:62.5%;
+  text-transform:uppercase; color:var(--text-hi); letter-spacing:-.005em;
+}
+.sheet__close{
+  all:unset; cursor:pointer; flex:0 0 auto; margin-inline-start:auto;
+  inline-size:44px; block-size:44px; display:grid; place-items:center;
+  color:var(--text-mute); border:1px solid var(--line-2);
+}
+@media (hover:hover) and (pointer:fine){
+  .sheet__close:hover{color:var(--text-hi); background:var(--surface-3)}
+}
+.sheet__emblem{flex:0 0 auto; inline-size:56px; block-size:56px}
+
+.dl{
+  display:grid; grid-template-columns:auto 1fr; gap:8px 16px;
+  margin:18px 0; padding-block:16px;
+  border-block:1px solid var(--line-2);
+}
+.dl dt{
+  font:700 10px/1.5 var(--font-body); letter-spacing:.18em;
+  text-transform:uppercase; color:var(--attack); white-space:nowrap;
+}
+.sheet[data-side="DEF"] .dl dt{color:var(--defense)}
+.dl dd{margin:0; color:var(--text-hi); font-weight:600; font-size:14px}
+.dl dd .pips{display:inline-flex; vertical-align:middle}
+
+.sheet__job{
+  margin:0 0 20px; padding:13px 14px; background:var(--surface-1);
+  border-inline-start:3px solid var(--attack);
+  font:500 14px/1.5 var(--font-body); color:var(--text);
+}
+.sheet[data-side="DEF"] .sheet__job{border-inline-start-color:var(--defense)}
+.sheet__job b{color:var(--text-hi); font-weight:700}
+
+.sheet__warn{
+  margin:0 0 16px; font:600 12px/1.5 var(--font-body);
+  color:var(--text-mute); text-align:center;
+}
+.sheet__err{
+  margin:0 0 14px; padding:11px 13px; background:var(--attack-deep);
+  border-inline-start:3px solid var(--attack); color:#FFD9D4;
+  font:600 13px/1.45 var(--font-body);
+}
+.sheet__actions{display:flex; flex-direction:column; gap:9px}
+
+/* ═══════════════════════════ CONFIRMED ═══════════════════════════ */
+.done{padding-block:26px 44px}
+.done__card{
+  position:relative; overflow:hidden;
+  background:linear-gradient(158deg,var(--sel-attack) 0%,var(--surface-2) 62%);
+  border:1px solid var(--attack);
+  padding:24px 20px;
+}
+.done__card[data-side="DEF"]{
+  background:linear-gradient(158deg,var(--sel-defense) 0%,var(--surface-2) 62%);
+  border-color:var(--defense);
+}
+.done__card::before{
+  content:""; position:absolute; inset:0; pointer-events:none;
+  background:repeating-linear-gradient(90deg, rgba(232,236,242,.03) 0 1px, transparent 1px 5px);
+  mask-image:linear-gradient(180deg,#000,transparent 80%);
+  -webkit-mask-image:linear-gradient(180deg,#000,transparent 80%);
+}
+.done__row{position:relative; display:flex; align-items:center; gap:16px; flex-wrap:wrap}
+.done__emblem{inline-size:64px; block-size:64px; flex:0 0 auto}
+.done__name{
+  margin:0; font:800 clamp(38px,12vw,64px)/.88 var(--font-display); font-stretch:62.5%;
+  text-transform:uppercase; color:var(--text-hi);
+}
+.done__squad{
+  display:inline-flex; align-items:center; gap:7px; margin-block-start:10px;
+  padding:7px 12px; background:var(--attack); color:var(--void);
+  font:700 12px/1 var(--font-body); letter-spacing:.16em; text-transform:uppercase;
+}
+.done__card[data-side="DEF"] .done__squad{background:var(--defense)}
+
+.panel{
+  background:var(--surface-1); border:1px solid var(--line);
+  padding:18px 18px; margin-block-start:14px;
+}
+.panel h2{
+  margin:0 0 14px; font:700 12px/1 var(--font-body);
+  letter-spacing:.2em; text-transform:uppercase; color:var(--attack);
+}
+.panel ul{margin:0; padding-inline-start:18px; color:var(--text)}
+.panel li{margin-block-end:7px}
+.panel li::marker{color:var(--text-dim)}
+
+/* ═══════════════════════════ ROSTER TABLE ═══════════════════════════ */
+.squads{display:grid; gap:14px; margin-block-start:14px}
+@media (min-width:760px){ .squads{grid-template-columns:1fr 1fr} }
+.squad h2{margin:0 0 10px}
+.squad--def h2{color:var(--defense)}
+.squad__list{list-style:none; margin:0; padding:0}
+.squad__row{
+  display:flex; align-items:center; gap:11px;
+  min-block-size:52px; padding:7px 11px;
+  border-block-end:1px solid var(--line);
+  font-size:14px;
+}
+.squad__row:last-child{border-block-end:0}
+.squad__row.is-open{color:var(--text-dim)}
+.squad__op{
+  font:700 15px/1 var(--font-display); font-stretch:62.5%;
+  text-transform:uppercase; color:var(--text-hi);
+  flex:0 0 42%; min-inline-size:0; overflow:hidden; text-overflow:ellipsis;
+}
+.squad__row.is-open .squad__op{color:var(--text-dim)}
+.squad__who{
+  flex:1 1 auto; text-align:end; font-weight:600; color:var(--text-claimant);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.squad__row.is-open .squad__who{color:var(--ok); font:700 10px/1 var(--font-body); letter-spacing:.16em; text-transform:uppercase}
+
+.empty{padding:40px 20px; text-align:center; color:var(--text-mute)}
+
+/* ═══════════════════════════ MISC ═══════════════════════════ */
+.bar{
+  position:absolute; inset-inline:0; inset-block-start:0; block-size:2px;
+  overflow:hidden; background:transparent;
+}
+.bar::after{
+  content:""; position:absolute; inset-block:0; inline-size:40%;
+  background:var(--attack); animation:sweep 900ms linear infinite;
+}
+@keyframes sweep{from{transform:translateX(-110%)}to{transform:translateX(310%)}}
+
+.status-line{
+  display:flex; align-items:center; gap:8px; justify-content:center;
+  padding-block:10px 26px; font:500 12px/1 var(--font-body); color:var(--text-dim);
+}
+.dot{inline-size:6px; block-size:6px; border-radius:50%; background:var(--ok)}
+.dot.is-off{background:var(--warn)}
+
+footer.foot{
+  border-block-start:1px solid var(--line); padding-block:20px 40px;
+  font:500 12px/1.6 var(--font-body); color:var(--text-dim); text-align:center;
+}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{
+    animation-duration:.01ms!important; animation-iteration-count:1!important;
+    transition-duration:.01ms!important; scroll-behavior:auto!important;
+  }
+  .op__btn:hover, .op[data-state="mine"] .op__btn{transform:none!important}
+}
+</style>
+</head>
+<body>
+
+<!-- Original emblem geometry. Six abstract marks, none derived from any real
+     insignia. Combined with a seeded hue and the operator's initial, they give
+     24 visually distinct cards for about 200 bytes each. -->
+<svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
+<defs>
+  <g id="em-0"><path class="em-shape" stroke-width="2" d="M24 5 40 13v22l-16 8-16-8V13z"/><path class="em-shape" stroke-width="2" d="M13 31 35 17"/></g>
+  <g id="em-1"><circle class="em-shape" stroke-width="2" cx="24" cy="24" r="18"/><path class="em-shape" stroke-width="2" d="M24 10 34 30H14z"/><path class="em-shape" stroke-width="2" d="M13 35h22"/></g>
+  <g id="em-2"><path class="em-shape" stroke-width="2" d="M24 5 43 24 24 43 5 24z"/><path class="em-shape" stroke-width="2" d="M24 14.5 33.5 24 24 33.5 14.5 24z"/></g>
+  <g id="em-3"><path class="em-shape" stroke-width="3" d="M8 26 24 12l16 14"/><path class="em-shape" stroke-width="3" d="M8 38 24 24l16 14"/></g>
+  <g id="em-4"><path class="em-shape" stroke-width="2" d="M35 35A18 18 0 1 1 39 20"/><circle class="em-shape" stroke-width="2" cx="24" cy="24" r="4"/></g>
+  <g id="em-5"><path class="em-shape" stroke-width="2.5" d="M16 7H7v34h9"/><path class="em-shape" stroke-width="2.5" d="M32 7h9v34h-9"/><path class="em-shape" stroke-width="2.5" d="M24 12v24"/></g>
+</defs>
+</svg>
+
+<div id="demoBanner" class="demo" hidden>
+  Demo mode — picks are saved in this browser only. Add your Apps Script URL to go live.
+</div>
+
+<!-- ─────────────── GATE ─────────────── -->
+<main id="gate" class="gate">
+  <div class="gate__card">
+    <div class="gate__eyebrow"><span class="u-label">Operator Selection</span></div>
+    <h1 class="gate__title" id="gateTitle">RAHZAR</h1>
+    <p class="gate__sub" id="gateSub">BACHELOR PARTY / NERF WAR</p>
+
+    <div class="gate__rule"></div>
+
+    <dl class="gate__meta">
+      <dt>Date</dt><dd id="mDate">—</dd>
+      <dt>Time</dt><dd id="mTime">—</dd>
+      <dt>Location</dt><dd id="mLoc">—</dd>
+    </dl>
+
+    <form id="gateForm" novalidate>
+      <p class="gate__err" id="gateErr" hidden role="alert"></p>
+
+      <div class="field">
+        <label class="field__label" for="who">Who are you?</label>
+        <select class="select" id="who" required>
+          <option value="">— select your name —</option>
+        </select>
+        <p class="gate__hint" id="gateHint" hidden>
+          Last time this phone was <b id="gateHintName">—</b>.
+          <button type="button" class="linkbtn" id="gateHintBtn">That&rsquo;s me</button>
+        </p>
+      </div>
+
+      <div class="field">
+        <label class="field__label" for="code">Party code</label>
+        <input class="input" id="code" type="text" inputmode="text"
+               autocomplete="off" autocapitalize="characters" spellcheck="false"
+               placeholder="From the invite" required>
+      </div>
+
+      <button class="btn btn--primary btn--block" type="submit" id="gateGo">Enter the armoury</button>
+    </form>
+
+    <p class="gate__foot">
+      One operator each. First tap wins, and the pick is locked once it is yours.
+      Your operator decides your squad.
+    </p>
+  </div>
+</main>
+
+<!-- ─────────────── BOARD ─────────────── -->
+<div id="app" hidden>
+  <header class="topbar">
+    <div class="wrap topbar__in">
+      <div class="brand">
+        <span class="brand__mark">R6<b>/</b>SELECT</span>
+        <span class="brand__sub" id="youAre">—</span>
+      </div>
+      <span class="topbar__spacer"></span>
+      <span class="count"><b id="cNum">0</b><span>/ <span id="cMax">24</span><span class="count__word"> claimed</span></span></span>
+      <button class="btn btn--sm btn--ghost" id="rosterBtn" type="button">Roster</button>
+    </div>
+  </header>
+
+  <main class="wrap" id="boardView">
+    <div class="banner banner--bad" id="lockNote" role="status" hidden>
+      The host has closed the board. Picks are frozen.
+    </div>
+
+    <div class="swapbar" id="swapBar" hidden>
+      <div class="swapbar__txt">
+        <span class="swapbar__lead">Changing operator</span>
+        <span class="swapbar__note">You keep <b id="swapFrom">—</b> until you confirm a new one.</span>
+      </div>
+      <button class="btn btn--sm btn--ghost" type="button" id="swapCancel">Keep it</button>
+    </div>
+
+    <div class="controls" role="group" aria-label="Filter by side">
+      <div class="seg">
+        <button class="seg__btn" type="button" data-side="ALL" aria-pressed="true">All <span class="seg__n" id="nAll">24</span></button>
+        <button class="seg__btn" type="button" data-side="ATT" aria-pressed="false">Attack <span class="seg__n" id="nAtt">12</span></button>
+        <button class="seg__btn" type="button" data-side="DEF" aria-pressed="false">Defense <span class="seg__n" id="nDef">12</span></button>
+      </div>
+    </div>
+
+    <ul class="roster" id="grid"></ul>
+
+    <div class="status-line">
+      <span class="dot" id="liveDot"></span><span id="liveTxt">Live</span>
+      <span aria-hidden="true">&middot;</span>
+      <button type="button" class="linkbtn" id="switchGuest">Not <span id="youAre2">you</span>?</button>
+    </div>
+  </main>
+
+  <!-- confirmed -->
+  <main class="wrap done" id="doneView" hidden>
+    <div class="done__card" id="doneCard">
+      <div class="done__row">
+        <svg class="done__emblem" id="doneEmblem" viewBox="0 0 48 48" aria-hidden="true"></svg>
+        <div>
+          <p class="sheet__eyebrow" style="margin:0 0 4px">Your operator</p>
+          <h1 class="done__name" id="doneName">—</h1>
+          <span class="done__squad" id="doneSquad">—</span>
+        </div>
+      </div>
+    </div>
+
+    <section class="panel">
+      <h2>Your job</h2>
+      <p style="margin:0" id="doneJob">—</p>
+    </section>
+
+    <section class="panel">
+      <h2>The briefing</h2>
+      <dl class="gate__meta" style="margin-block-end:14px">
+        <dt>Date</dt><dd id="dDate">—</dd>
+        <dt>Time</dt><dd id="dTime">—</dd>
+        <dt>Location</dt><dd id="dLoc">—</dd>
+      </dl>
+      <ul id="doneBrief"></ul>
+    </section>
+
+    <div style="display:flex; gap:9px; flex-wrap:wrap; margin-block-start:14px">
+      <button class="btn" type="button" id="swapBtn">Change my operator</button>
+      <button class="btn btn--ghost" type="button" id="viewBoardBtn">See the board</button>
+      <button class="btn btn--ghost" type="button" id="releaseBtn">Give up my pick</button>
+    </div>
+  </main>
+
+  <!-- roster -->
+  <main class="wrap done" id="rosterView" hidden>
+    <div class="squads">
+      <section class="squad">
+        <h2 class="panel-h u-label" style="letter-spacing:.2em">Attack — <span id="attCount">0</span>/12</h2>
+        <ul class="squad__list" id="attList"></ul>
+      </section>
+      <section class="squad squad--def">
+        <h2 class="panel-h u-label" style="letter-spacing:.2em; color:var(--defense)">Defense — <span id="defCount">0</span>/12</h2>
+        <ul class="squad__list" id="defList"></ul>
+      </section>
+    </div>
+    <div style="margin-block-start:18px">
+      <button class="btn btn--ghost" type="button" id="rosterBack">Back to the board</button>
+    </div>
+  </main>
+
+  <footer class="foot wrap">
+    Not affiliated with or endorsed by Ubisoft. Operator names are used to identify
+    characters from the game; all artwork here is original.
+  </footer>
+</div>
+
+<div id="sheetHost"></div>
+<p class="u-sr" id="live" role="status" aria-live="polite"></p>
+
+<script>
+/* ══════════════════════════════════════════════════════════════════════
+   DATA
+   ══════════════════════════════════════════════════════════════════════ */
+const OPERATORS = [
+  {id:"sledge", name:"Sledge", side:"ATT", side_label:"Attack squad", ctu:"SAS", country:"United Kingdom", speed:2, armor:2, difficulty:1, gadget:"Tactical Breaching Hammer \"The Caber\"", role:"Breaches soft walls and floors with a hammer", nerf:"smashes the piñata barricade open with a foam sledgehammer"},
+  {id:"thatcher", name:"Thatcher", side:"ATT", side_label:"Attack squad", ctu:"SAS", country:"United Kingdom", speed:1, armor:3, difficulty:2, gadget:"EG Mk 0-EMP Grenade", role:"Disables defender electronics for the hard breach", nerf:"carries the EMP: unplugs every fan, speaker and fairy light"},
+  {id:"ash", name:"Ash", side:"ATT", side_label:"Attack squad", ctu:"FBI SWAT", country:"Israel", speed:3, armor:1, difficulty:2, gadget:"M120 CREM Breaching Rounds", role:"Fast entry fragger, breaches walls from range", nerf:"fires the wall-popping shot from way across the lawn"},
+  {id:"thermite", name:"Thermite", side:"ATT", side_label:"Attack squad", ctu:"FBI SWAT", country:"United States", speed:2, armor:2, difficulty:1, gadget:"Brimstone BC-3 Exothermic Charge", role:"Opens reinforced walls for the whole attack", nerf:"burns through the taped-up reinforced door, slowly and very loudly"},
+  {id:"twitch", name:"Twitch", side:"ATT", side_label:"Attack squad", ctu:"GIGN", country:"France", speed:2, armor:2, difficulty:2, gadget:"RSD Model 1 Shock Drone", role:"Drone scout who destroys defender gadgets", nerf:"drives the RC car ahead and zaps traps with it"},
+  {id:"montagne", name:"Montagne", side:"ATT", side_label:"Attack squad", ctu:"GIGN", country:"France", speed:1, armor:3, difficulty:3, gadget:"Extendable Shield \"Le Roc\"", role:"Mobile cover, pushes and gathers intel", nerf:"walks point behind the giant cardboard shield, soaking up darts"},
+  {id:"glaz", name:"Glaz", side:"ATT", side_label:"Attack squad", ctu:"Spetsnaz", country:"Russia", speed:3, armor:1, difficulty:2, gadget:"HDS Flip Sight OTs-03 MARKSMAN", role:"Thermal-scope marksman who shoots through smoke", nerf:"camps the high balcony with a scope, calling out everyone's positions"},
+  {id:"fuze", name:"Fuze", side:"ATT", side_label:"Attack squad", ctu:"Spetsnaz", country:"Uzbekistan", speed:1, armor:3, difficulty:1, gadget:"Matryoshka Cluster Charge", role:"Clears rooms with cluster charges through walls", nerf:"lobs a fistful of darts over the wall, then apologises"},
+  {id:"iq", name:"IQ", side:"ATT", side_label:"Attack squad", ctu:"GSG 9", country:"Germany", speed:3, armor:1, difficulty:3, gadget:"Electronics Detector RED Mk III \"Spectre\"", role:"Spots and removes hidden defender electronics", nerf:"sweeps every room with the detector, finds all the hiding spots"},
+  {id:"blitz", name:"Blitz", side:"ATT", side_label:"Attack squad", ctu:"GSG 9", country:"Germany", speed:2, armor:2, difficulty:3, gadget:"G52-Tactical Light Shield", role:"Flash-shield rusher who blinds and closes distance", nerf:"blinds the room with a phone torch, then charges straight in"},
+  {id:"buck", name:"Buck", side:"ATT", side_label:"Attack squad", ctu:"JTF2", country:"Canada", speed:2, armor:2, difficulty:1, gadget:"Skeleton Key SK 4-12", role:"Vertical play specialist, shoots through floors", nerf:"blasts holes in the ceiling, then shoots down through them"},
+  {id:"blackbeard", name:"Blackbeard", side:"ATT", side_label:"Attack squad", ctu:"Navy SEALs", country:"United States", speed:1, armor:3, difficulty:2, gadget:"H.U.L.L. Adaptable Shield", role:"Shielded angle-holder who wins outside gunfights", nerf:"clips a shield to the blaster and simply refuses to fall"},
+  {id:"smoke", name:"Smoke", side:"DEF", side_label:"Defense squad", ctu:"SAS", country:"United Kingdom", speed:2, armor:2, difficulty:2, gadget:"Compound Z8 Remote Gas Grenade", role:"Denies the plant with toxic gas", nerf:"throws the smoke bomb and refuses to leave the doorway"},
+  {id:"mute", name:"Mute", side:"DEF", side_label:"Defense squad", ctu:"SAS", country:"United Kingdom", speed:2, armor:2, difficulty:1, gadget:"GC90 Signal Disruptor", role:"Jams drones and blocks remote breaching", nerf:"collects everyone's phones so no one can call in a plan"},
+  {id:"castle", name:"Castle", side:"DEF", side_label:"Defense squad", ctu:"FBI SWAT", country:"United States", speed:2, armor:2, difficulty:2, gadget:"UTP1-Universal Tactical Panel", role:"Reinforces doors and windows with armor panels", nerf:"duct-tapes cardboard over every window until nobody can get in"},
+  {id:"pulse", name:"Pulse", side:"DEF", side_label:"Defense squad", ctu:"FBI SWAT", country:"United States", speed:3, armor:1, difficulty:3, gadget:"HB-5 Cardiac Sensor", role:"Tracks heartbeats through walls and floors", nerf:"hears you breathing through the wall and calls it out"},
+  {id:"doc", name:"Doc", side:"DEF", side_label:"Defense squad", ctu:"GIGN", country:"France", speed:1, armor:3, difficulty:1, gadget:"MPD-0 Stim Pistol", role:"Heals and revives teammates at range", nerf:"revives eliminated teammates with juice boxes and a stim pistol"},
+  {id:"rook", name:"Rook", side:"DEF", side_label:"Defense squad", ctu:"GIGN", country:"France", speed:1, armor:3, difficulty:1, gadget:"R1N \"Rhino\" Armor Pack", role:"Hands the team extra armor plates", nerf:"hands out spare goggles and vests from a big duffel bag"},
+  {id:"kapkan", name:"Kapkan", side:"DEF", side_label:"Defense squad", ctu:"Spetsnaz", country:"Russia", speed:2, armor:2, difficulty:1, gadget:"Entry Denial Device (EDD Mk II)", role:"Traps entryways with hidden explosive devices", nerf:"rigs silly-string tripwires on every doorframe in the house"},
+  {id:"tachanka", name:"Tachanka", side:"DEF", side_label:"Defense squad", ctu:"Spetsnaz", country:"Russia", speed:1, armor:3, difficulty:1, gadget:"Shumikha Launcher", role:"Area denial with an incendiary grenade launcher", nerf:"holds one corner lobbing foam grenades and never moves once"},
+  {id:"jager", name:"Jäger", side:"DEF", side_label:"Defense squad", ctu:"GSG 9", country:"Germany", speed:3, armor:1, difficulty:2, gadget:"ADS Mk IV \"Magpie\" Active Defense System", role:"Shoots down thrown attacker projectiles", nerf:"snatches incoming darts out of the air with alarming ease"},
+  {id:"bandit", name:"Bandit", side:"DEF", side_label:"Defense squad", ctu:"GSG 9", country:"Germany", speed:3, armor:1, difficulty:1, gadget:"CED-1 Crude Electrical Device \"Shock Wire\"", role:"Electrifies barricades to stop hard breaching", nerf:"tapes the barricades so nobody dares touch a single one"},
+  {id:"frost", name:"Frost", side:"DEF", side_label:"Defense squad", ctu:"JTF2", country:"Canada", speed:2, armor:2, difficulty:1, gadget:"Sterling Mk2 LHT \"Welcome Mat\"", role:"Traps floors, downing anyone who steps in", nerf:"hides the trap mat under the real doormat, then giggles"},
+  {id:"valkyrie", name:"Valkyrie", side:"DEF", side_label:"Defense squad", ctu:"Navy SEALs", country:"United States", speed:2, armor:2, difficulty:2, gadget:"Gyro Cam Mk2 \"Black Eye\"", role:"Places hidden cameras for constant map intel", nerf:"sticks tiny cameras everywhere, including inside the drinks fridge"}
+];
+
+const CFG = window.CONFIG;
+const DEMO = !CFG.API_URL || /PASTE_YOUR/.test(CFG.API_URL);
+const LS = {
+  who:   'r6.playerId',
+  code:  'r6.code',      // what the guest typed, kept so a reload need not ask again
+  demo:  'r6.demoClaims',
+  demoV: 'r6.demoVersion'
+};
+/* The token and nonce belong to ONE guest. Keyed globally, a second guest on
+   the same phone inherits the first guest's credentials: the release button
+   appears for them and either fails or, worse, acts on the wrong claim. */
+const tokenKey = (pid) => 'r6.token.' + (pid || '_');
+const nonceKey = (pid) => 'r6.nonce.' + (pid || '_');
+
+/* ══════════════════════════════════════════════════════════════════════
+   SMALL HELPERS
+   ══════════════════════════════════════════════════════════════════════ */
+const $  = (s, r) => (r || document).querySelector(s);
+const $$ = (s, r) => Array.prototype.slice.call((r || document).querySelectorAll(s));
+
+/* Reads return the value or null. Writes return true on success and FALSE on
+   failure, which matters: Safari private browsing throws on setItem, and demo
+   mode must not tell a guest they claimed something that was never saved. */
+function store(k, v){
+  try{
+    if (v === undefined) return localStorage.getItem(k);
+    if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v);
+    return true;
+  } catch(e){ return v === undefined ? null : false; }
+}
+function esc(s){
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function say(msg){ const l = $('#live'); if (l) l.textContent = msg; }
+
+/* Seeded hue: narrow bands so a guest can say "the orange one" without the
+   board turning into a paint chart. Never used for text colour. */
+function hueFor(name, side){
+  let h = 0;
+  for (const ch of name) h = ((h << 5) - h + ch.codePointAt(0)) | 0;
+  h = Math.abs(h);
+  return side === 'ATT' ? 6 + (h % 26) : 198 + (h % 34);
+}
+function emblemFor(name){
+  let h = 0;
+  for (const ch of name) h = ((h << 5) - h + ch.codePointAt(0)) | 0;
+  return Math.abs(h) % 6;
+}
+/* `label` is the visible micro-label; `spoken` is what a screen reader says.
+   The sheet shows no visible label because a <dt> already names the row. */
+function pipsHTML(label, n, mod, spoken){
+  let out = '<span class="pips ' + (mod || '') + '" role="img" aria-label="' +
+            esc((spoken || label) + ' ' + n + ' of 3') + '">';
+  if (label) out += '<span class="pips-label" aria-hidden="true">' + esc(label) + '</span>';
+  for (let i = 1; i <= 3; i++) out += '<span class="pip' + (i <= n ? ' is-on' : '') + '" aria-hidden="true"></span>';
+  return out + '</span>';
+}
+function emblemSVG(op, cls){
+  return '<svg class="' + (cls || '') + '" viewBox="0 0 48 48" aria-hidden="true" focusable="false" ' +
+         'style="--op-hue:' + hueFor(op.name, op.side) + '">' +
+         '<use href="#em-' + emblemFor(op.name) + '"></use>' +
+         '<text class="em-ltr" x="24" y="29">' + esc(op.name.charAt(0)) + '</text></svg>';
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   STATE
+   ══════════════════════════════════════════════════════════════════════ */
+const state = {
+  claims: {},        // opId -> {player, playerId, side, at}
+  count: 0,
+  max: 24,
+  locked: false,
+  v: -1,
+  me: store(LS.who) || '',
+  code: store(LS.code) || '',   // never hardcoded; the server is the authority
+  filter: 'ALL',
+  busy: false,
+  online: true,
+  ready: false,        // true once the first state response has landed
+  swapping: false      // true while the guest is choosing a replacement
+};
+const meName = () => {
+  const p = CFG.PLAYERS.find(p => p.id === state.me);
+  return p ? p.name : '';
+};
+const myClaim = () => {
+  for (const id in state.claims) if (state.claims[id].playerId === state.me) return state.claims[id];
+  return null;
+};
+function nonce(){
+  let n = store(nonceKey(state.me));
+  if (!n) {
+    n = 'n-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+    store(nonceKey(state.me), n);
+  }
+  return n;
+}
+const myToken  = () => store(tokenKey(state.me)) || '';
+const setToken = (t) => store(tokenKey(state.me), t || null);
+
+/* ══════════════════════════════════════════════════════════════════════
+   TRANSPORT
+   The POST goes out as text/plain on purpose. An application/json body
+   triggers a CORS preflight, and an Apps Script web app cannot answer one.
+   ══════════════════════════════════════════════════════════════════════ */
+/* Every request is bounded. Venue wifi that accepts a connection and then
+   stalls would otherwise hang the promise forever, and with it the in-flight
+   flag, leaving the guest unable to claim anything for the rest of the night
+   with nothing on screen to explain why. */
+async function api(payload, timeoutMs){
+  if (DEMO) return demoApi(payload);
+  const url = CFG.API_URL;
+  const ac = (typeof AbortController === 'function') ? new AbortController() : null;
+  const timer = setTimeout(() => { if (ac) ac.abort(); }, timeoutMs || 12000);
+  try{
+    const opts = { redirect:'follow' };
+    if (ac) opts.signal = ac.signal;
+    let res;
+    if (payload.action === 'state'){
+      opts.method = 'GET';
+      res = await fetch(url + (url.indexOf('?') === -1 ? '?' : '&') + 'action=state', opts);
+    } else {
+      opts.method = 'POST';
+      // text/plain keeps this a simple request. An application/json body would
+      // trigger a preflight, and an Apps Script web app cannot answer OPTIONS.
+      opts.headers = { 'Content-Type':'text/plain;charset=utf-8' };
+      opts.body = JSON.stringify(payload);
+      res = await fetch(url, opts);
+    }
+    if (!res.ok) return { ok:false, error:'HTTP_' + res.status, detail:'The server answered with an error (' + res.status + ').' };
+    const txt = await res.text();
+    try { return JSON.parse(txt); }
+    catch(e){ return { ok:false, error:'BAD_RESPONSE', detail:'The sign-in server sent something unexpected. Check the deployment.' }; }
+  } catch(err){
+    const aborted = err && (err.name === 'AbortError' || err.code === 20);
+    return aborted
+      ? { ok:false, error:'TIMEOUT', detail:'The server did not answer in time. Nothing was changed. Try again.' }
+      : { ok:false, error:'NETWORK', detail:'Could not reach the sign-in server. Check your signal and try again.' };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/* Demo backend. Same shapes, same rules, browser-local. Lets the whole flow
+   be clicked through before Apps Script exists. */
+function demoLoad(){ try { return JSON.parse(store(LS.demo) || '{}'); } catch(e){ return {}; } }
+/* Returns false when the browser refused the write (private mode, blocked site
+   data). Callers must not report success in that case. */
+function demoSave(o){
+  const okDb = store(LS.demo, JSON.stringify(o));
+  const v = (parseInt(store(LS.demoV), 10) || 0) + 1;
+  store(LS.demoV, String(v));
+  return okDb !== false;
+}
+const STORAGE_BLOCKED = {
+  ok:false, error:'CONFIG',
+  detail:'This browser is blocking storage, so a demo pick cannot be saved. Try a normal (non-private) window.'
+};
+function demoApi(p){
+  const db = demoLoad();
+  const list = () => Object.keys(db).map(k => db[k]);
+  if (p.action === 'check'){
+    // There is no server here to hold the real code, so demo mode takes any
+    // non-empty one. The banner already says these picks are not real.
+    if (!String(p.code || '').trim()) return { ok:false, error:'BAD_CODE', detail:'Type the code from the invite.' };
+    const who = CFG.PLAYERS.find(x => x.id === p.playerId);
+    if (p.playerId && !who) return { ok:false, error:'UNKNOWN_PLAYER', detail:'Not on the guest list.' };
+    return { ok:true, player: who ? { id:who.id, name:who.name } : null, locked:false };
+  }
+  if (p.action === 'state'){
+    // A real counter, not the claim count. A release plus a claim between two
+    // polls leaves the count identical, and the page short-circuits on v.
+    return { ok:true, claims:list(), count:list().length, max:24, locked:false,
+             v: parseInt(store(LS.demoV), 10) || 0 };
+  }
+  if (p.action === 'claim'){
+    const op = OPERATORS.find(o => o.id === p.op);
+    const who = CFG.PLAYERS.find(x => x.id === p.playerId);
+    if (!who) return { ok:false, error:'UNKNOWN_PLAYER', detail:'Not on the guest list.' };
+    if (!op)  return { ok:false, error:'UNKNOWN_OP', detail:'No such operator.' };
+    const mine = list().find(c => c.playerId === p.playerId);
+    if (mine) return { ok:false, error:'PLAYER_HAS_OPERATOR', detail:'You already hold ' + mine.opName + '.', claim:mine };
+    if (db[p.op]) return { ok:false, error:'OPERATOR_TAKEN', detail:op.name + ' is gone.', claim:db[p.op] };
+    db[p.op] = { op:op.id, opName:op.name, player:who.name, playerId:who.id, side:op.side, at:new Date().toISOString() };
+    if (!demoSave(db)) return STORAGE_BLOCKED;
+    return { ok:true, claim:db[p.op], token:'demo-token' };
+  }
+  if (p.action === 'swap'){
+    const op = OPERATORS.find(o => o.id === p.op);
+    const mine = list().find(c => c.playerId === p.playerId);
+    if (!op) return { ok:false, error:'UNKNOWN_OP', detail:'No such operator.' };
+    if (!mine) return { ok:false, error:'NO_CLAIM', detail:'You do not hold an operator yet.' };
+    if (mine.op === op.id) return { ok:true, unchanged:true, claim:mine, token:'demo-token' };
+    if (db[op.id]){
+      return { ok:false, error:'OPERATOR_TAKEN',
+               detail:op.name + ' is gone. You still hold ' + mine.opName + '.',
+               claim:db[op.id], kept:mine };
+    }
+    const who = CFG.PLAYERS.find(x => x.id === p.playerId);
+    delete db[mine.op];
+    db[op.id] = { op:op.id, opName:op.name, player:who.name, playerId:who.id, side:op.side, at:new Date().toISOString() };
+    if (!demoSave(db)) return STORAGE_BLOCKED;
+    return { ok:true, claim:db[op.id], released:mine, token:'demo-token' };
+  }
+  if (p.action === 'release'){
+    const mine = list().find(c => c.playerId === p.playerId);
+    if (!mine) return { ok:false, error:'NO_CLAIM', detail:'You do not hold an operator.' };
+    delete db[mine.op];
+    if (!demoSave(db)) return STORAGE_BLOCKED;
+    return { ok:true, released:mine };
+  }
+  return { ok:false, error:'UNKNOWN_ACTION', detail:'?' };
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   RENDER
+   ══════════════════════════════════════════════════════════════════════ */
+function buildGrid(){
+  const grid = $('#grid');
+  grid.innerHTML = OPERATORS.map((op, i) => {
+    const idx = String(i + 1).padStart(2, '0');
+    return '' +
+    '<li class="op" data-op="' + op.id + '" data-side="' + op.side + '" ' +
+        'style="--op-hue:' + hueFor(op.name, op.side) + '; container-type:inline-size">' +
+      '<button class="op__btn" type="button" aria-pressed="false">' +
+        '<span class="op__plate" aria-hidden="true">' +
+          '<span class="op__idx">' + idx + '</span>' +
+          '<span class="op__ctu">' + esc(op.ctu) + '</span>' +
+          emblemSVG(op, 'op__emblem') +
+        '</span>' +
+        '<span class="op__name-plate">' +
+          '<span class="op__rail" aria-hidden="true"></span>' +
+          '<span class="op__name">' + esc(op.name) + '</span>' +
+          '<span class="op__row2">' +
+            '<span class="op__statwrap">' +
+              pipsHTML('SPD', op.speed) + pipsHTML('ARM', op.armor, 'pips--arm') +
+            '</span>' +
+            '<span class="op__status">Available</span>' +
+          '</span>' +
+          '<span class="op__claim"></span>' +
+        '</span>' +
+      '</button>' +
+    '</li>';
+  }).join('');
+}
+
+const LOCK_ICO =
+  '<svg class="lock-ico" width="11" height="13" viewBox="0 0 11 13" fill="none" aria-hidden="true">' +
+  '<path d="M2.6 5.4V3.6a2.9 2.9 0 0 1 5.8 0v1.8" stroke="currentColor" stroke-width="1.5"/>' +
+  '<rect x="1" y="5.4" width="9" height="6.8" stroke="currentColor" stroke-width="1.5"/></svg>';
+
+function paint(){
+  const mine = myClaim();
+  $('#cNum').textContent = state.count;
+  $('#cMax').textContent = state.max;
+  $('#youAre').textContent = meName() ? meName().toUpperCase() : '—';
+  $('#youAre2').textContent = meName() || 'you';
+  $('#grid').classList.toggle('is-pending', !state.ready);
+
+  let att = 0, def = 0;
+  $$('#grid .op').forEach(li => {
+    const id = li.dataset.op;
+    const op = OPERATORS.find(o => o.id === id);
+    const c  = state.claims[id];
+    const btn = $('.op__btn', li);
+    const isMine = c && c.playerId === state.me;
+
+    if (!c) { if (op.side === 'ATT') att++; else def++; }
+
+    li.dataset.state = isMine ? 'mine' : (c ? 'taken' : (state.locked ? 'closed' : 'open'));
+    btn.setAttribute('aria-pressed', isMine ? 'true' : 'false');
+
+    const claimEl = $('.op__claim', li);
+    const statusEl = $('.op__status', li);
+    if (isMine){
+      statusEl.textContent = 'Your pick';
+      claimEl.innerHTML = '';
+      btn.disabled = false;
+      btn.setAttribute('aria-label', op.name + ', your pick. ' + op.side_label);
+    } else if (c){
+      claimEl.innerHTML = LOCK_ICO + '<span>Locked &middot; ' + esc(c.player) + '</span>';
+      claimEl.title = c.player;
+      // A taken card is genuinely unavailable, so say so rather than leaving a
+      // screen reader to infer it from the visual treatment.
+      btn.disabled = true;
+      btn.setAttribute('aria-label', op.name + ', taken by ' + c.player + '. Not available.');
+    } else if (state.locked){
+      statusEl.textContent = 'Closed';
+      claimEl.innerHTML = '';
+      btn.disabled = true;
+      btn.setAttribute('aria-label', op.name + ', board closed by the host.');
+    } else {
+      statusEl.textContent = 'Available';
+      claimEl.innerHTML = '';
+      btn.disabled = false;
+      btn.setAttribute('aria-label', op.name + ', available. ' + op.side_label +
+        '. Speed ' + op.speed + ' of 3, armour ' + op.armor + ' of 3.');
+    }
+
+    const show = state.filter === 'ALL' || state.filter === op.side;
+    li.hidden = !show;
+  });
+
+  $('#nAll').textContent = att + def;
+  $('#nAtt').textContent = att;
+  $('#nDef').textContent = def;
+  $('#lockNote').hidden = !state.locked;
+
+  paintRoster();
+  if (mine) paintDone(mine);
+  $('#releaseBtn').hidden = !mine;
+  $('#swapBtn').hidden = !mine;
+
+  // If the pick being swapped away vanished server-side (the host revoked it,
+  // say), there is nothing left to trade. Drop out of swap mode quietly.
+  if (state.swapping && !mine){ state.swapping = false; }
+  $('#swapBar').hidden = !state.swapping;
+  if (state.swapping) $('#swapFrom').textContent = mine.opName || mine.op;
+}
+
+function paintRoster(){
+  const rows = side => OPERATORS.filter(o => o.side === side).map(o => {
+    const c = state.claims[o.id];
+    return '<li class="squad__row' + (c ? '' : ' is-open') + '">' +
+      '<span class="squad__op">' + esc(o.name) + '</span>' +
+      '<span class="squad__who">' + (c ? esc(c.player) : 'Open') + '</span></li>';
+  }).join('');
+  $('#attList').innerHTML = rows('ATT');
+  $('#defList').innerHTML = rows('DEF');
+  $('#attCount').textContent = OPERATORS.filter(o => o.side === 'ATT' && state.claims[o.id]).length;
+  $('#defCount').textContent = OPERATORS.filter(o => o.side === 'DEF' && state.claims[o.id]).length;
+}
+
+function paintDone(c){
+  const op = OPERATORS.find(o => o.id === c.op);
+  if (!op) return;
+  const card = $('#doneCard');
+  card.dataset.side = op.side;
+  $('#doneEmblem').outerHTML = emblemSVG(op, 'done__emblem').replace('<svg ', '<svg id="doneEmblem" ');
+  $('#doneName').textContent = op.name;
+  $('#doneSquad').textContent = (op.side === 'ATT' ? 'Attack squad' : 'Defense squad');
+  $('#doneJob').innerHTML = '<b>' + esc(op.gadget) + '</b> &mdash; ' + esc(op.nerf) + '.';
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   VIEWS
+   ══════════════════════════════════════════════════════════════════════ */
+function show(view){
+  $('#boardView').hidden  = view !== 'board';
+  $('#doneView').hidden   = view !== 'done';
+  $('#rosterView').hidden = view !== 'roster';
+  window.scrollTo({ top:0, behavior:'auto' });
+
+  // Hiding the container that held focus drops focus to <body>, which sends a
+  // keyboard or screen-reader user back to the top of the document. Move it
+  // onto the view that just appeared instead.
+  const el = view === 'done' ? $('#doneView') : view === 'roster' ? $('#rosterView') : $('#boardView');
+  if (el){
+    el.setAttribute('tabindex', '-1');
+    el.focus({ preventScroll:true });
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   THE CONFIRM SHEET
+   ══════════════════════════════════════════════════════════════════════ */
+let sheetOpen = null;
+let sheetDismissable = true;   // false while a claim is in flight
+
+function openSheet(opId){
+  const op = OPERATORS.find(o => o.id === opId);
+  if (!op) return;
+  const c = state.claims[opId];
+  const sideWord = op.side === 'ATT' ? 'Attack' : 'Defense';
+  if (state.locked && (!c || c.playerId !== state.me)){
+    banner('The host has closed the board. Picks are frozen.', true);
+    return;
+  }
+  // Non-null only while the guest is trading one operator for another.
+  const swapFrom = state.swapping ? myClaim() : null;
+
+  const body =
+  '<div class="scrim" id="scrim">' +
+    '<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="shName" ' +
+         'aria-describedby="shWarn" data-side="' + op.side + '">' +
+      '<div class="sheet__head">' +
+        emblemSVG(op, 'sheet__emblem') +
+        '<div style="min-width:0">' +
+          '<p class="sheet__eyebrow">' + esc(sideWord) + ' &middot; ' + esc(op.ctu) + '</p>' +
+          '<h2 class="sheet__name" id="shName">' + esc(op.name) + '</h2>' +
+        '</div>' +
+        '<button class="sheet__close" type="button" id="shClose" aria-label="Close">' +
+          '<svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M2 2l14 14M16 2L2 16" stroke="currentColor" stroke-width="2"/></svg>' +
+        '</button>' +
+      '</div>' +
+
+      '<dl class="dl">' +
+        '<dt>Squad</dt><dd>' + esc(sideWord) + '</dd>' +
+        '<dt>Speed</dt><dd>' + pipsHTML('', op.speed, '', 'Speed') + '</dd>' +
+        '<dt>Armour</dt><dd>' + pipsHTML('', op.armor, 'pips--arm', 'Armour') + '</dd>' +
+        '<dt>Gadget</dt><dd>' + esc(op.gadget) + '</dd>' +
+        '<dt>Role</dt><dd>' + esc(op.role) + '</dd>' +
+      '</dl>' +
+
+      '<p class="sheet__job">Your job on the day: <b>' + esc(op.nerf) + '</b>.</p>' +
+
+      '<p class="sheet__err" id="shErr" hidden role="alert"></p>' +
+
+      (c
+        ? '<p class="sheet__warn" id="shWarn">Already claimed by <b>' + esc(c.player) + '</b>. Pick another.</p>' +
+          '<div class="sheet__actions"><button class="btn btn--block btn--ghost" type="button" id="shCancel">Back to the board</button></div>'
+        : '<p class="sheet__warn" id="shWarn">' + (swapFrom
+            ? 'You are trading away <b>' + esc(swapFrom.opName) + '</b>. If someone takes ' +
+              esc(op.name) + ' first, nothing happens and you keep ' + esc(swapFrom.opName) + '.'
+            : 'This is final. Once you confirm, ' + esc(op.name) + ' is yours and nobody else can take them.') +
+          '</p>' +
+          '<div class="sheet__actions">' +
+            '<button class="btn btn--block ' + (op.side === 'ATT' ? 'btn--primary' : 'btn--defense') + '" type="button" id="shGo">' +
+              (swapFrom ? 'Swap to ' + esc(op.name) : 'Lock in ' + esc(op.name)) + '</button>' +
+            '<button class="btn btn--block btn--ghost" type="button" id="shCancel">Cancel</button>' +
+          '</div>') +
+    '</div>' +
+  '</div>';
+
+  $('#sheetHost').innerHTML = body;
+  document.body.classList.add('is-locked');
+  sheetOpen = opId;
+  sheetDismissable = true;
+
+  // Everything behind the dialog is removed from the tab order and from the
+  // accessibility tree. aria-modal alone does not do this.
+  $('#app').inert = true;
+
+  const first = $('#shGo') || $('#shCancel');
+  // preventScroll matters: the sheet is its own scroll container, and focusing
+  // a control near its bottom scrolls the operator's name out of view before
+  // the guest has even seen it.
+  if (first) first.focus({ preventScroll:true });
+  const sh = $('.sheet');
+  if (sh) sh.scrollTop = 0;
+
+  $('#shClose').addEventListener('click', () => { if (sheetDismissable) closeSheet(); });
+  $('#shCancel').addEventListener('click', () => { if (sheetDismissable) closeSheet(); });
+  $('#scrim').addEventListener('mousedown', e => {
+    if (e.target.id === 'scrim' && sheetDismissable) closeSheet();
+  });
+  $('#scrim').addEventListener('keydown', trapTab);
+  const go = $('#shGo');
+  if (go) go.addEventListener('click', () => doClaim(op));
+}
+
+/* Tab and Shift+Tab cycle inside the dialog rather than walking out of it. */
+function trapTab(e){
+  if (e.key !== 'Tab') return;
+  const sh = $('.sheet');
+  if (!sh) return;
+  const items = $$('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])', sh)
+    .filter(el => !el.disabled && el.offsetParent !== null);
+  if (!items.length) return;
+  const first = items[0], last = items[items.length - 1];
+  if (e.shiftKey && document.activeElement === first){ e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last){ e.preventDefault(); first.focus(); }
+}
+
+function setSheetDismissable(on){
+  sheetDismissable = !!on;
+  const x = $('#shClose'), c = $('#shCancel');
+  if (x) x.disabled = !on;
+  if (c) c.disabled = !on;
+}
+
+function closeSheet(){
+  const id = sheetOpen;
+  $('#sheetHost').innerHTML = '';
+  document.body.classList.remove('is-locked');
+  $('#app').inert = false;
+  sheetOpen = null;
+  sheetDismissable = true;
+  if (id){
+    const btn = $('#grid .op[data-op="' + id + '"] .op__btn');
+    if (btn) btn.focus();
+  }
+}
+
+function sheetError(msg){
+  const el = $('#shErr');
+  if (!el) return;
+  el.textContent = msg;
+  el.hidden = false;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   ACTIONS
+   ══════════════════════════════════════════════════════════════════════ */
+async function doClaim(op){
+  if (state.busy) return;
+  state.busy = true;
+
+  const from = state.swapping ? myClaim() : null;
+  const ctaText = from ? 'Swap to ' + op.name : 'Lock in ' + op.name;
+  const go0 = $('#shGo');
+  if (go0){ go0.disabled = true; go0.textContent = from ? 'Swapping…' : 'Claiming…'; }
+  // While a claim is in flight the sheet must not be dismissable: the request
+  // cannot be recalled, so letting the guest close it would mean the answer
+  // arrives with nowhere to go.
+  setSheetDismissable(false);
+
+  let res;
+  try {
+    res = from
+      ? await api({ action:'swap', code: state.code, playerId: state.me, op: op.id,
+                    token: myToken(), nonce: nonce() })
+      : await api({ action:'claim', code: state.code, playerId: state.me, op: op.id, nonce: nonce() });
+  } catch (err) {
+    res = { ok:false, error:'NETWORK', detail:'Something went wrong sending that. Try again.' };
+  } finally {
+    // In a finally so an abort or a throw can never strand the flag and lock
+    // the guest out of claiming for the rest of the night.
+    state.busy = false;
+    setSheetDismissable(true);
+  }
+
+  // Re-query rather than reuse the node captured before the await: on a slow
+  // round trip the sheet may have been rebuilt, and writing to a detached node
+  // puts the answer somewhere nobody is looking.
+  const go = (sheetOpen === op.id) ? $('#shGo') : null;
+
+  if (res.ok){
+    if (res.token) setToken(res.token);
+    // A swap frees the old operator. Drop it locally so the board is right
+    // immediately, rather than waiting for the next poll.
+    if (res.released) delete state.claims[res.released.op];
+    state.claims[res.claim.op] = res.claim;
+    state.count = Object.keys(state.claims).length;
+    state.swapping = false;
+    closeSheet();
+    paint();
+    show('done');
+    say(res.unchanged
+      ? 'You already had ' + op.name + '. Nothing changed.'
+      : op.name + ' is yours. You are on the ' + (op.side === 'ATT' ? 'attack' : 'defense') + ' squad.');
+    refresh();
+    return;
+  }
+
+  if (go){ go.disabled = false; go.textContent = ctaText; }
+
+  if (res.error === 'OPERATOR_TAKEN'){
+    if (res.claim) state.claims[res.claim.op] = res.claim;
+    if (res.kept) state.claims[res.kept.op] = res.kept;   // the swap that did not happen
+    paint();
+    closeSheet();
+    const li = $('#grid .op[data-op="' + op.id + '"]');
+    if (li){
+      li.classList.add('is-shake');
+      setTimeout(() => li.classList.remove('is-shake'), 460);
+      const btn = $('.op__btn', li); if (btn) btn.focus();
+    }
+    const who = res.claim ? res.claim.player : 'someone else';
+    say(from
+      ? op.name + ' was just taken by ' + who + '. You still have ' + from.opName + '.'
+      : op.name + ' was just taken by ' + who + '. Pick another.');
+    return;
+  }
+
+  if (res.error === 'PLAYER_HAS_OPERATOR'){
+    // Only reachable on the claim path, and it means this device is out of
+    // date. Adopt the server's answer and send them to their confirmation.
+    if (res.claim) state.claims[res.claim.op] = res.claim;
+    if (res.token) setToken(res.token);
+    state.swapping = false;
+    closeSheet(); paint(); show('done');
+    say('You already hold an operator.');
+    return;
+  }
+
+  if (res.error === 'LOCKED'){
+    state.locked = true;
+    closeSheet(); paint();
+    banner('The host has closed the board. No more changes.', true);
+    say('The board is locked. No more changes.');
+    return;
+  }
+
+  if (res.error === 'NO_CLAIM'){
+    // Tried to swap but the server says we hold nothing. Retry as a claim.
+    state.swapping = false;
+    state.busy = false;
+    closeSheet();
+    openSheet(op.id);
+    say('Your previous pick is gone. Claim ' + op.name + ' outright instead.');
+    return;
+  }
+
+  const msg = res.detail || res.error || 'Something went wrong. Try again.';
+  // If the guest is no longer looking at this sheet, the error has to follow
+  // them rather than be written into a node that is gone.
+  if (sheetOpen === op.id) sheetError(msg); else banner(msg, true);
+  say((from ? 'Swap' : 'Claim') + ' failed. ' + msg);
+}
+
+/* A page-level message for anything that happens when no sheet is open. */
+let bannerTimer = null;
+function banner(msg, bad){
+  let el = $('#pageBanner');
+  if (!el){
+    el = document.createElement('div');
+    el.id = 'pageBanner';
+    el.setAttribute('role', 'status');
+    const board = $('#boardView');
+    board.insertBefore(el, board.firstChild);
+  }
+  el.className = 'banner' + (bad ? ' banner--bad' : '');
+  el.textContent = msg;
+  el.hidden = false;
+  clearTimeout(bannerTimer);
+  bannerTimer = setTimeout(() => { el.hidden = true; }, 9000);
+}
+
+function setSwapping(on){
+  const mine = myClaim();
+  state.swapping = !!(on && mine);
+  const bar = $('#swapBar');
+  bar.hidden = !state.swapping;
+  if (state.swapping){
+    $('#swapFrom').textContent = mine.opName || mine.op;
+    show('board');
+    say('Choose a replacement. You keep ' + (mine.opName || mine.op) + ' until you confirm.');
+  }
+  paint();
+}
+
+async function doRelease(){
+  if (state.busy) return;
+  const mine = myClaim();
+  if (!mine) return;
+  const opName = mine.opName || mine.op;
+  if (!myToken()){
+    window.alert('This device cannot give up ' + opName + ', because it is not the one that claimed it. Ask the host to free it for you.');
+    return;
+  }
+  if (!window.confirm('Give up ' + opName + '? Someone else can take them the moment you do.')) return;
+
+  state.busy = true;
+  const btn = $('#releaseBtn');
+  const label = btn ? btn.textContent : '';
+  if (btn){ btn.disabled = true; btn.textContent = 'Releasing…'; }
+
+  let res;
+  try { res = await api({ action:'release', playerId: state.me, token: myToken() }); }
+  catch (err) { res = { ok:false, detail:'Something went wrong. Try again.' }; }
+  finally {
+    state.busy = false;
+    if (btn){ btn.disabled = false; btn.textContent = label; }
+  }
+
+  if (res.ok){
+    delete state.claims[mine.op];
+    state.count = Object.keys(state.claims).length;
+    setToken(null);
+    setSwapping(false);
+    paint(); show('board');
+    say(opName + ' released.');
+  } else {
+    window.alert(res.detail || 'Could not release that pick.');
+  }
+  refresh();
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   POLLING
+   ══════════════════════════════════════════════════════════════════════ */
+let timer = null;
+let pollInFlight = false;   // one state request at a time
+let pollSeq = 0;            // discards a slow response overtaken by a newer one
+let misses = 0;             // consecutive failures, used to back the interval off
+
+async function refresh(){
+  if (pollInFlight) return;
+  pollInFlight = true;
+  const seq = ++pollSeq;
+
+  let res;
+  try { res = await api({ action:'state' }, 9000); }
+  finally { pollInFlight = false; }
+
+  if (seq !== pollSeq) return;   // a newer response already landed
+
+  const dot = $('#liveDot'), txt = $('#liveTxt');
+
+  if (!res.ok){
+    misses++;
+    state.online = false;
+    dot.classList.add('is-off');
+    txt.textContent = DEMO ? 'Demo mode' : (misses > 2 ? 'Offline — retrying' : 'Reconnecting…');
+    return;
+  }
+  misses = 0;
+  state.online = true;
+  dot.classList.remove('is-off');
+  txt.textContent = DEMO ? 'Demo mode — this browser only' : 'Live';
+
+  // Never step backwards onto an older board.
+  if (typeof res.v === 'number' && state.v !== -1 && res.v < state.v) return;
+  if (res.v === state.v && state.v !== -1) return;   // nothing changed
+
+  const seeding = (state.v === -1);   // the very first successful fetch
+  state.v = res.v;
+  state.count = res.count;
+  state.max = res.max || 24;
+  state.locked = !!res.locked;
+
+  const next = {};
+  (res.claims || []).forEach(c => { next[c.op] = c; });
+
+  const before = state.claims;
+  state.claims = next;
+
+  // Announce what changed WHILE the guest was watching. On the seeding pass
+  // every existing claim is new to us, and reading out twenty names as
+  // breaking news is both wrong and useless.
+  if (!seeding){
+    for (const id in next){
+      if (!before[id] && next[id].playerId !== state.me){
+        const op = OPERATORS.find(o => o.id === id);
+        if (op) say(op.name + ' was just claimed by ' + next[id].player + '.');
+      }
+    }
+  }
+  state.ready = true;
+  paint();
+}
+
+function startPolling(){
+  const tick = () => { if (!document.hidden) refresh(); };
+  if (timer) clearInterval(timer);
+  timer = setInterval(tick, 6000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   BOOT
+   ══════════════════════════════════════════════════════════════════════ */
+function initGate(){
+  const E = CFG.EVENT;
+  $('#gateTitle').textContent = E.title;
+  $('#gateSub').textContent   = E.subtitle;
+  $('#mDate').textContent = E.date;  $('#dDate').textContent = E.date;
+  $('#mTime').textContent = E.time;  $('#dTime').textContent = E.time;
+  $('#mLoc').textContent  = E.location; $('#dLoc').textContent = E.location;
+  $('#doneBrief').innerHTML = (E.brief || []).map(b => '<li>' + esc(b) + '</li>').join('');
+  document.title = E.title + ' — Operator Selection';
+
+  const sel = $('#who');
+  CFG.PLAYERS.forEach(p => {
+    const o = document.createElement('option');
+    o.value = p.id; o.textContent = p.name;
+    sel.appendChild(o);
+  });
+  // Deliberately NOT pre-selected. Phones get passed around at a party, and a
+  // pre-filled name plus a code everyone knows means one careless tap signs a
+  // guest in as somebody else and burns that person's pick. Offer it instead.
+  const remembered = store(LS.who);
+  if (remembered){
+    const p = CFG.PLAYERS.find(x => x.id === remembered);
+    if (p){
+      const hint = $('#gateHint');
+      hint.hidden = false;
+      $('#gateHintName').textContent = p.name;
+      $('#gateHintBtn').addEventListener('click', () => {
+        sel.value = p.id;
+        $('#code').focus();
+      });
+    }
+  }
+
+  if (DEMO) $('#demoBanner').hidden = false;
+}
+
+async function enterApp(){
+  $('#gate').hidden = true;
+  $('#app').hidden = false;
+  buildGrid();
+  paint();                       // renders the grid in its pending, non-interactive state
+  show('board');
+  await refresh();               // the first time the board is fact rather than a guess
+  // Decided AFTER the server has answered. Before that state.claims is empty,
+  // so a guest who already holds an operator would always land on the board.
+  if (myClaim()) show('done');
+  startPolling();
+}
+
+function wire(){
+  function gateFail(field, msg){
+    const err = $('#gateErr');
+    // Reveal BEFORE writing. A role="alert" that is display:none when its text
+    // changes is not in the accessibility tree, so nothing is announced.
+    err.hidden = false;
+    err.textContent = msg;
+    field.classList.add('is-bad');
+    field.setAttribute('aria-invalid', 'true');
+    field.setAttribute('aria-describedby', 'gateErr');
+    field.focus();
+  }
+
+  $('#gateForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    if (state.busy) return;
+    const whoEl = $('#who'), codeEl = $('#code'), go = $('#gateGo');
+    const who = whoEl.value, code = String(codeEl.value).trim();
+    $('#gateErr').hidden = true;
+    [whoEl, codeEl].forEach(el => {
+      el.classList.remove('is-bad');
+      el.removeAttribute('aria-invalid');
+      el.removeAttribute('aria-describedby');
+    });
+
+    if (!who) return gateFail(whoEl, 'Pick your name from the list first.');
+    if (!code) return gateFail(codeEl, 'Type the code from the invite.');
+
+    // The page does not know the code, so it asks. This also proves the
+    // Apps Script URL works before the guest ever tries to claim anything.
+    state.busy = true;
+    go.disabled = true;
+    const wasLabel = go.textContent;
+    go.textContent = 'Checking…';
+    let res;
+    try { res = await api({ action:'check', code: code, playerId: who }, 12000); }
+    finally { state.busy = false; go.disabled = false; go.textContent = wasLabel; }
+
+    if (!res.ok){
+      if (res.error === 'BAD_CODE') return gateFail(codeEl, 'That code is not right. Check the invite.');
+      if (res.error === 'UNKNOWN_PLAYER') return gateFail(whoEl, 'That name is not on the guest list. Tell the host.');
+      // Anything else is the server or the connection, not the guest.
+      return gateFail(codeEl, res.detail || 'Could not reach the sign-in server. Try again in a moment.');
+    }
+
+    state.me = who;
+    state.code = code;
+    state.locked = !!res.locked;
+    store(LS.who, who);
+    store(LS.code, code);
+    enterApp();
+  });
+
+  $('#grid').addEventListener('click', e => {
+    const btn = e.target.closest('.op__btn');
+    if (!btn) return;
+    const li = btn.closest('.op');
+    if (li.dataset.state === 'mine'){
+      // Tapping the one you already hold means "actually, keep it".
+      if (state.swapping){ setSwapping(false); }
+      show('done');
+      return;
+    }
+    if (li.dataset.state === 'taken' && !state.swapping){ openSheet(li.dataset.op); return; }
+    openSheet(li.dataset.op);
+  });
+
+  $$('.seg__btn').forEach(b => b.addEventListener('click', () => {
+    state.filter = b.dataset.side;
+    $$('.seg__btn').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    paint();
+  }));
+
+  $('#rosterBtn').addEventListener('click', () => {
+    const showing = !$('#rosterView').hidden;
+    show(showing ? (myClaim() ? 'done' : 'board') : 'roster');
+  });
+  $('#rosterBack').addEventListener('click', () => show(myClaim() ? 'done' : 'board'));
+  $('#viewBoardBtn').addEventListener('click', () => show('board'));
+  $('#switchGuest').addEventListener('click', () => {
+    // Hand the phone to the next guest. The token and nonce stay behind under
+    // their owner's key, so whoever claimed on this device keeps the ability
+    // to release even after somebody else has signed in and out.
+    if (state.busy) return;
+    state.me = '';
+    state.code = '';
+    store(LS.who, null);
+    store(LS.code, null);
+    state.swapping = false;
+    if (timer) clearInterval(timer);
+    $('#app').hidden = true;
+    $('#gate').hidden = false;
+    $('#who').value = '';
+    $('#code').value = '';
+    $('#gateHint').hidden = true;
+    $('#who').focus();
+  });
+  $('#swapBtn').addEventListener('click', () => setSwapping(true));
+  $('#swapCancel').addEventListener('click', () => { setSwapping(false); show('done'); });
+  $('#releaseBtn').addEventListener('click', doRelease);
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && sheetOpen && sheetDismissable) closeSheet();
+  });
+}
+
+initGate();
+wire();
+</script>
+</body>
+</html>
