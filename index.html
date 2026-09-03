@@ -670,6 +670,20 @@ img{max-width:100%}
   border-inline-start:3px solid var(--attack); color:#FFD9D4;
   font:600 13px/1.45 var(--font-body);
 }
+/* Progress, not failure. Deliberately not the red error style, and on a polite
+   live region rather than the assertive alert one. */
+.sheet__note{
+  margin:0 0 14px; padding:11px 13px; background:var(--surface-1);
+  border-inline-start:3px solid var(--line-strong); color:var(--text);
+  font:600 13px/1.45 var(--font-body);
+  display:flex; align-items:center; gap:9px;
+}
+.sheet__note::before{
+  content:""; flex:0 0 auto; inline-size:9px; block-size:9px;
+  background:var(--warn); transform:rotate(45deg);
+  animation:pulse 1.1s ease-in-out infinite;
+}
+@keyframes pulse{0%,100%{opacity:.35}50%{opacity:1}}
 .sheet__actions{display:flex; flex-direction:column; gap:9px}
 
 /* ═══════════════════════════ CONFIRMED ═══════════════════════════ */
@@ -1411,6 +1425,7 @@ function openSheet(opId){
 
       '<p class="sheet__job">Your job on the day: <b>' + esc(op.nerf) + '</b>.</p>' +
 
+      '<p class="sheet__note" id="shWait" hidden role="status"></p>' +
       '<p class="sheet__err" id="shErr" hidden role="alert"></p>' +
 
       (c
@@ -1507,6 +1522,7 @@ async function doClaim(op){
   const ctaText = from ? 'Swap to ' + op.name : 'Lock in ' + op.name;
   const go0 = $('#shGo');
   if (go0){ go0.disabled = true; go0.textContent = from ? 'Swapping…' : 'Claiming…'; }
+  startWaitMessages();
   // While a claim is in flight the sheet must not be dismissable: the request
   // cannot be recalled, so letting the guest close it would mean the answer
   // arrives with nowhere to go.
@@ -1525,6 +1541,7 @@ async function doClaim(op){
     // the guest out of claiming for the rest of the night.
     state.busy = false;
     setSheetDismissable(true);
+    stopWaitMessages();
   }
 
   // Re-query rather than reuse the node captured before the await: on a slow
@@ -1546,15 +1563,29 @@ async function doClaim(op){
     say(res.unchanged
       ? 'You already had ' + op.name + '. Nothing changed.'
       : op.name + ' is yours. You are on the ' + (op.side === 'ATT' ? 'attack' : 'defense') + ' squad.');
-    refresh();
+    // No refresh here. The response already told us everything about this
+    // guest's own claim, and they are now looking at the confirmation screen.
+    // The scheduled poll re-syncs the rest of the board shortly. Skipping it
+    // removes one slow request per claim from exactly the busiest moment.
     return;
   }
 
   if (go){ go.disabled = false; go.textContent = ctaText; }
 
   if (res.error === 'OPERATOR_TAKEN'){
-    if (res.claim) state.claims[res.claim.op] = res.claim;
-    if (res.kept) state.claims[res.kept.op] = res.kept;   // the swap that did not happen
+    // The server sends the whole board with this rejection, so the guest can see
+    // what is still free without paying for another round trip during a rush.
+    if (res.state && res.state.claims){
+      const next = {};
+      res.state.claims.forEach(c => { next[c.op] = c; });
+      state.claims = next;
+      state.count = res.state.count;
+      if (typeof res.state.v === 'number') state.v = res.state.v;
+      state.ready = true;
+    } else {
+      if (res.claim) state.claims[res.claim.op] = res.claim;
+      if (res.kept) state.claims[res.kept.op] = res.kept;   // the swap that did not happen
+    }
     paint();
     closeSheet();
     const li = $('#grid .op[data-op="' + op.id + '"]');
@@ -1587,7 +1618,7 @@ async function doClaim(op){
     // server-side: whatever we find, it is a complete state, never a half one.
     if (go){ go.disabled = true; go.textContent = 'Checking…'; }
     state.v = -1;                  // force the next poll past the version check
-    await refresh();
+    await refresh(true);
     const now = myClaim();
     closeSheet();
     paint();
@@ -1633,6 +1664,31 @@ async function doClaim(op){
   // them rather than be written into a node that is gone.
   if (sheetOpen === op.id) sheetError(msg); else banner(msg, true);
   say((from ? 'Swap' : 'Claim') + ' failed. ' + msg);
+}
+
+/* Writes honest, stepped progress into the sheet while a claim is in flight.
+   Apps Script takes anywhere from three to twenty seconds on a write, and a
+   frozen button for that long reads as a hang. This is the deliberate
+   alternative to optimistic UI: showing a claim as won before the server has
+   said so would be a lie the guest acts on, and the claim is final. */
+let waitTimers = [];
+function startWaitMessages(){
+  stopWaitMessages();
+  const show = (msg) => {
+    const el = $('#shWait');
+    if (!el) return;
+    el.hidden = false;
+    el.textContent = msg;
+  };
+  waitTimers.push(setTimeout(() => show('Still going. Do not close this.'), 3000));
+  waitTimers.push(setTimeout(() => show('The board handles one pick at a time, so this can take a moment.'), 9000));
+  waitTimers.push(setTimeout(() => show('Still waiting on the server. Your request has not been lost.'), 20000));
+}
+function stopWaitMessages(){
+  waitTimers.forEach(clearTimeout);
+  waitTimers = [];
+  const el = $('#shWait');
+  if (el){ el.hidden = true; el.textContent = ''; }
 }
 
 /* A page-level message for anything that happens when no sheet is open. */
@@ -1699,7 +1755,7 @@ async function doRelease(){
     say(opName + ' released.');
   } else if (res.error === 'TIMEOUT' || res.error === 'NETWORK'){
     state.v = -1;
-    await refresh();
+    await refresh(true);
     if (myClaim()){
       window.alert('That took too long and did not go through. You still have ' + opName + '.');
     } else {
@@ -1722,8 +1778,12 @@ let pollInFlight = false;   // one state request at a time
 let pollSeq = 0;            // discards a slow response overtaken by a newer one
 let misses = 0;             // consecutive failures, used to back the interval off
 
-async function refresh(){
-  if (pollInFlight) return;
+/* The force flag is for the timeout-recovery paths, which must actually read the
+   board rather than silently returning because a routine poll happens to be in
+   flight. Ordering is still protected: every call takes a fresh sequence ticket
+   and a response whose ticket has been superseded is discarded. */
+async function refresh(force){
+  if (pollInFlight && !force) return;
   pollInFlight = true;
   const seq = ++pollSeq;
 
