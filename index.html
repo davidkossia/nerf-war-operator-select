@@ -856,6 +856,10 @@ footer.foot{
   </header>
 
   <main class="wrap" id="boardView">
+    <div class="banner" id="loadNote" role="status">
+      Loading the board. This can take a few seconds the first time.
+    </div>
+
     <div class="banner banner--bad" id="lockNote" role="status" hidden>
       The host has closed the board. Picks are frozen.
     </div>
@@ -978,6 +982,15 @@ const OPERATORS = [
 ];
 
 const CFG = window.CONFIG;
+
+/* Apps Script is slow and gets slower when it is cold. Measured round trips on
+   a live deployment: a state read takes about five seconds, a write more,
+   because it queues behind the script lock. These are generous on purpose —
+   a timeout that fires on a request the server went on to complete is worse
+   than waiting. */
+const T_STATE = 20000;   // polling
+const T_GATE  = 30000;   // the code check, which may land on a cold script
+const T_WRITE = 45000;   // claim, swap, release
 const DEMO = !CFG.API_URL || /PASTE_YOUR/.test(CFG.API_URL);
 const LS = {
   who:   'r6.playerId',
@@ -1114,8 +1127,11 @@ async function api(payload, timeoutMs){
     catch(e){ return { ok:false, error:'BAD_RESPONSE', detail:'The sign-in server sent something unexpected. Check the deployment.' }; }
   } catch(err){
     const aborted = err && (err.name === 'AbortError' || err.code === 20);
+    // Deliberately does not say "nothing was changed". On a timeout the client
+    // genuinely does not know: the request may well have been carried out after
+    // we stopped listening. Callers that mutate re-read the board instead.
     return aborted
-      ? { ok:false, error:'TIMEOUT', detail:'The server did not answer in time. Nothing was changed. Try again.' }
+      ? { ok:false, error:'TIMEOUT', detail:'The server is taking a long time to answer.' }
       : { ok:false, error:'NETWORK', detail:'Could not reach the sign-in server. Check your signal and try again.' };
   } finally {
     clearTimeout(timer);
@@ -1237,6 +1253,8 @@ function paint(){
   $('#youAre').textContent = meName() ? meName().toUpperCase() : '—';
   $('#youAre2').textContent = meName() || 'you';
   $('#grid').classList.toggle('is-pending', !state.ready);
+  const load = $('#loadNote');
+  if (load) load.hidden = state.ready;
 
   let att = 0, def = 0;
   $$('#grid .op').forEach(li => {
@@ -1490,8 +1508,8 @@ async function doClaim(op){
   try {
     res = from
       ? await api({ action:'swap', code: state.code, playerId: state.me, op: op.id,
-                    token: myToken(), nonce: nonce() })
-      : await api({ action:'claim', code: state.code, playerId: state.me, op: op.id, nonce: nonce() });
+                    token: myToken(), nonce: nonce() }, T_WRITE)
+      : await api({ action:'claim', code: state.code, playerId: state.me, op: op.id, nonce: nonce() }, T_WRITE);
   } catch (err) {
     res = { ok:false, error:'NETWORK', detail:'Something went wrong sending that. Try again.' };
   } finally {
@@ -1552,6 +1570,35 @@ async function doClaim(op){
     state.swapping = false;
     closeSheet(); paint(); show('done');
     say('You already hold an operator.');
+    return;
+  }
+
+  if (res.error === 'TIMEOUT' || res.error === 'NETWORK'){
+    // The write may have landed after we gave up listening, so the only honest
+    // thing to do is re-read the board and see. This is why the swap is atomic
+    // server-side: whatever we find, it is a complete state, never a half one.
+    if (go){ go.disabled = true; go.textContent = 'Checking…'; }
+    state.v = -1;                  // force the next poll past the version check
+    await refresh();
+    const now = myClaim();
+    closeSheet();
+    paint();
+    if (now && now.op === op.id){
+      // It did go through.
+      state.swapping = false;
+      show('done');
+      say(op.name + ' is yours. You are on the ' + (op.side === 'ATT' ? 'attack' : 'defense') + ' squad.');
+      return;
+    }
+    if (now){
+      // Still holding the old one, so the write did not land.
+      show(state.swapping ? 'board' : 'done');
+      banner('That took too long and did not go through. You still have ' + (now.opName || now.op) + '. Try again.', true);
+      say('That did not go through. You still have ' + (now.opName || now.op) + '.');
+      return;
+    }
+    banner('That took too long and did not go through. Nothing was claimed. Try again.', true);
+    say('That did not go through. Try again.');
     return;
   }
 
@@ -1628,7 +1675,7 @@ async function doRelease(){
   if (btn){ btn.disabled = true; btn.textContent = 'Releasing…'; }
 
   let res;
-  try { res = await api({ action:'release', playerId: state.me, token: myToken() }); }
+  try { res = await api({ action:'release', playerId: state.me, token: myToken() }, T_WRITE); }
   catch (err) { res = { ok:false, detail:'Something went wrong. Try again.' }; }
   finally {
     state.busy = false;
@@ -1642,6 +1689,17 @@ async function doRelease(){
     setSwapping(false);
     paint(); show('board');
     say(opName + ' released.');
+  } else if (res.error === 'TIMEOUT' || res.error === 'NETWORK'){
+    state.v = -1;
+    await refresh();
+    if (myClaim()){
+      window.alert('That took too long and did not go through. You still have ' + opName + '.');
+    } else {
+      setToken(null);
+      setSwapping(false);
+      show('board');
+      say(opName + ' released.');
+    }
   } else {
     window.alert(res.detail || 'Could not release that pick.');
   }
@@ -1662,7 +1720,7 @@ async function refresh(){
   const seq = ++pollSeq;
 
   let res;
-  try { res = await api({ action:'state' }, 9000); }
+  try { res = await api({ action:'state' }, T_STATE); }
   finally { pollInFlight = false; }
 
   if (seq !== pollSeq) return;   // a newer response already landed
@@ -1722,6 +1780,25 @@ function startPolling(){
 /* ══════════════════════════════════════════════════════════════════════
    BOOT
    ══════════════════════════════════════════════════════════════════════ */
+/* Apps Script sleeps when idle and takes roughly fourteen seconds to wake,
+   against three to five once warm. The guest spends longer than that reading
+   the briefing and finding their name in the list, so spend it usefully: poke
+   the server the moment the page loads. By the time they submit, the check
+   comes back in a few seconds instead of making them stare at a spinner.
+   The result is deliberately ignored — this is a wake-up call, not data. */
+function warmUp(){
+  if (DEMO) return;
+  api({ action:'state' }, T_STATE).then(res => {
+    // If it answered, we also know the URL is reachable before anyone commits
+    // to anything, so a broken deployment can be said out loud early.
+    if (!res.ok && (res.error === 'NETWORK' || res.error === 'BAD_RESPONSE')){
+      const err = $('#gateErr');
+      err.hidden = false;
+      err.textContent = 'Cannot reach the sign-in server. Tell the host before you try to sign in.';
+    }
+  }).catch(() => {});
+}
+
 function initGate(){
   const E = CFG.EVENT;
   $('#gateTitle').textContent = E.title;
@@ -1756,6 +1833,38 @@ function initGate(){
   }
 
   if (DEMO) $('#demoBanner').hidden = false;
+}
+
+/* Confirms the code after the guest is already inside. Only acts on a definite
+   answer from the server: a timeout or a dropped connection leaves them where
+   they are, because the board reports its own connection state and any claim
+   they attempt will fail loudly on its own. */
+async function verifyInBackground(who, code){
+  const res = await api({ action:'check', code: code, playerId: who }, T_GATE);
+  if (res.ok){
+    state.locked = !!res.locked;
+    paint();
+    return;
+  }
+  if (res.error !== 'BAD_CODE' && res.error !== 'UNKNOWN_PLAYER') return;   // not the guest's fault
+
+  // Definitely wrong. Put them back at the gate rather than letting them pick
+  // an operator that the server will refuse.
+  if (timer) clearInterval(timer);
+  state.me = ''; state.code = '';
+  store(LS.who, null); store(LS.code, null);
+  $('#app').hidden = true;
+  $('#gate').hidden = false;
+  const err = $('#gateErr');
+  err.hidden = false;
+  err.textContent = res.error === 'BAD_CODE'
+    ? 'That code is not right. Check the invite.'
+    : 'That name is not on the guest list. Tell the host.';
+  const field = res.error === 'BAD_CODE' ? $('#code') : $('#who');
+  field.classList.add('is-bad');
+  field.setAttribute('aria-invalid', 'true');
+  field.setAttribute('aria-describedby', 'gateErr');
+  field.focus();
 }
 
 async function enterApp(){
@@ -1799,29 +1908,16 @@ function wire(){
     if (!who) return gateFail(whoEl, 'Pick your name from the list first.');
     if (!code) return gateFail(codeEl, 'Type the code from the invite.');
 
-    // The page does not know the code, so it asks. This also proves the
-    // Apps Script URL works before the guest ever tries to claim anything.
-    state.busy = true;
-    go.disabled = true;
-    const wasLabel = go.textContent;
-    go.textContent = 'Checking…';
-    let res;
-    try { res = await api({ action:'check', code: code, playerId: who }, 12000); }
-    finally { state.busy = false; go.disabled = false; go.textContent = wasLabel; }
-
-    if (!res.ok){
-      if (res.error === 'BAD_CODE') return gateFail(codeEl, 'That code is not right. Check the invite.');
-      if (res.error === 'UNKNOWN_PLAYER') return gateFail(whoEl, 'That name is not on the guest list. Tell the host.');
-      // Anything else is the server or the connection, not the guest.
-      return gateFail(codeEl, res.detail || 'Could not reach the sign-in server. Try again in a moment.');
-    }
-
+    // Let them in now and verify in the background. Nothing is risked by this:
+    // the board is read-only until they tap an operator, and every claim carries
+    // the code and is checked by the server again anyway. If the code turns out
+    // to be wrong they are bounced back here within a few seconds.
     state.me = who;
     state.code = code;
-    state.locked = !!res.locked;
     store(LS.who, who);
     store(LS.code, code);
     enterApp();
+    verifyInBackground(who, code);
   });
 
   $('#grid').addEventListener('click', e => {
@@ -1879,6 +1975,7 @@ function wire(){
 
 initGate();
 wire();
+warmUp();
 </script>
 </body>
 </html>
