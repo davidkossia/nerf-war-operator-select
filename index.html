@@ -917,6 +917,10 @@ footer.foot{
       <ul id="doneBrief"></ul>
     </section>
 
+    <div class="banner banner--bad" id="doneLocked" role="status" hidden>
+      The host has closed the board. Your operator is locked in and cannot be changed.
+    </div>
+
     <div style="display:flex; gap:9px; flex-wrap:wrap; margin-block-start:14px">
       <button class="btn" type="button" id="swapBtn">Change my operator</button>
       <button class="btn btn--ghost" type="button" id="viewBoardBtn">See the board</button>
@@ -1307,8 +1311,12 @@ function paint(){
 
   paintRoster();
   if (mine) paintDone(mine);
-  $('#releaseBtn').hidden = !mine;
-  $('#swapBtn').hidden = !mine;
+  // Both controls are the guest's own, but a frozen board is precisely when the
+  // host does not want changes. Offering a button the server will refuse is
+  // worse than not offering it, so hide them and say why.
+  $('#releaseBtn').hidden = !mine || state.locked;
+  $('#swapBtn').hidden   = !mine || state.locked;
+  $('#doneLocked').hidden = !state.locked;
 
   // If the pick being swapped away vanished server-side (the host revoked it,
   // say), there is nothing left to trade. Drop out of swap mode quietly.
