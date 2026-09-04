@@ -434,7 +434,7 @@ img{max-width:100%}
 /* The numeral bleeds off the chamfer on purpose, but it has to still read as
    a number. Kept small enough that the digits survive the crop. */
 .op__idx{
-  position:absolute; top:-.1em; right:-1%; z-index:2;
+  position:absolute; top:-.14em; right:-1%; z-index:2;
   font:800 clamp(46px,29cqw,84px)/.78 var(--font-display); font-stretch:62.5%;
   letter-spacing:-.05em; color:transparent;
   font-variant-numeric:tabular-nums;
@@ -461,11 +461,13 @@ img{max-width:100%}
 /* The unit. Real information, and it stops the plate reading as empty. */
 .op__ctu{
   position:absolute; top:9px; left:11px; z-index:2;
-  text-shadow:0 1px 3px rgba(6,8,12,.9);
+  padding:3px 6px;
+  background:rgba(8,11,17,.72);
+  backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px);
   font:700 8px/1 var(--font-body); letter-spacing:.2em;
   text-transform:uppercase;
-  color:var(--text-mute); pointer-events:none;
-  max-inline-size:60%; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;
+  color:var(--text); pointer-events:none;
+  max-inline-size:66%; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;
 }
 .op[data-side="DEF"] .op__ctu{left:auto; right:11px; text-align:end}
 
@@ -790,6 +792,10 @@ img{max-width:100%}
 }
 .done__row{position:relative; z-index:1; display:flex; align-items:center; gap:16px; flex-wrap:wrap}
 .done__emblem{inline-size:64px; block-size:64px; flex:0 0 auto}
+/* The twin of .sheet__head > div below. Without it the portrait paints over the
+   operator name: a positioned z-index:0 child still paints after static flex
+   items, so the number 0 is not "behind" here, it is "in front". */
+.done__row > div{position:relative; z-index:1}
 
 /* Anchored to the trailing edge so it never sits under the name, which is the
    thing the guest is actually here to read. */
