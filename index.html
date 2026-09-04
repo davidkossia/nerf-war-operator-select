@@ -361,20 +361,33 @@ img{max-width:100%}
 
 /* ═══════════════════════════ CARD ═══════════════════════════ */
 .op{
-  position:relative; min-block-size:176px;
-  content-visibility:auto; contain-intrinsic-size:auto 215px;
+  position:relative;
+  /* A grid so the single child stretches to the row height without asking for
+     a percentage of it. The card used to say block-size:100% on the button,
+     which was fine while that button carried its own aspect-ratio, but the
+     height now comes from the content and a percentage of an indefinite
+     parent has nothing to resolve against.
+
+     No content-visibility here either, deliberately. It needs a
+     contain-intrinsic-size to stand in for the real height, and the real
+     height is no longer a fixed number: it is a 3:5 plate sized off the card
+     width plus a nameplate that wraps differently at each breakpoint. A single
+     placeholder was wrong at every width except the one it was measured at,
+     and it pinned the card 60px shorter than its own artwork on tablets.
+     Twenty-four cards do not need the optimisation; the images are lazy. */
+  display:grid;
   scroll-margin-block-start:74px;
 }
 .op__btn{
   all:unset; box-sizing:border-box; cursor:pointer;
   display:flex; flex-direction:column;
-  inline-size:100%; block-size:100%; aspect-ratio:3/4;
+  inline-size:100%;
   -webkit-tap-highlight-color:transparent;
   box-shadow:var(--shadow-1);
   transition:transform var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out);
 }
 .op__plate{
-  position:relative; flex:0 0 62%; overflow:hidden;
+  position:relative; flex:0 0 auto; aspect-ratio:3/5; overflow:hidden;
   clip-path:polygon(0 0, calc(100% - var(--chamfer)) 0, 100% var(--chamfer), 100% 100%, 0 100%);
   background:
     radial-gradient(128% 88% at 78% -8%,
@@ -386,8 +399,25 @@ img{max-width:100%}
 .op[data-side="DEF"] .op__plate{
   clip-path:polygon(var(--chamfer) 0, 100% 0, 100% 100%, 0 100%, 0 var(--chamfer));
 }
+/* The official render. Cover with the box anchored to the top of the source,
+   because these are head-and-shoulders portraits and centring them would crop
+   the faces off. The bottom is masked into the plate gradient so the unit
+   label and the badge sitting over it stay readable. */
+.op__art{
+  position:absolute; inset:0; z-index:0;
+  inline-size:100%; block-size:100%;
+  /* The plate is already 3:5, so cover crops nothing. It stays as cover rather
+     than contain so a future art swap at a different ratio fills the box
+     instead of letterboxing inside it. */
+  object-fit:cover; object-position:50% 0%;
+  /* Only the last sliver, enough to settle the figure onto the nameplate.
+     Anything stronger starts eating the body Ubisoft shows in full. */
+  mask-image:linear-gradient(180deg,#000 0 88%,transparent 100%);
+  -webkit-mask-image:linear-gradient(180deg,#000 0 88%,transparent 100%);
+  transition:filter var(--dur-2) var(--ease-out), opacity var(--dur-2) var(--ease-out);
+}
 .op__plate::before{
-  content:""; position:absolute; inset:0; pointer-events:none;
+  content:""; position:absolute; inset:0; pointer-events:none; z-index:1;
   background:repeating-linear-gradient(90deg, rgba(232,236,242,.030) 0 1px, transparent 1px 4px);
   mask-image:linear-gradient(180deg,#000 0%,rgba(0,0,0,.35) 58%,transparent 92%);
   -webkit-mask-image:linear-gradient(180deg,#000 0%,rgba(0,0,0,.35) 58%,transparent 92%);
@@ -404,7 +434,7 @@ img{max-width:100%}
 /* The numeral bleeds off the chamfer on purpose, but it has to still read as
    a number. Kept small enough that the digits survive the crop. */
 .op__idx{
-  position:absolute; top:-5%; right:-1%;
+  position:absolute; top:-.1em; right:-1%; z-index:2;
   font:800 clamp(46px,29cqw,84px)/.78 var(--font-display); font-stretch:62.5%;
   letter-spacing:-.05em; color:transparent;
   font-variant-numeric:tabular-nums;
@@ -413,9 +443,25 @@ img{max-width:100%}
 }
 .op[data-side="DEF"] .op__idx{right:auto; left:-1%}
 
+/* ── the operator badge ──
+   One box holding two things: the official badge on top, and the geometry the
+   page drew for itself underneath. If the image never arrives - the img folder
+   did not get copied across on deploy, or the network dropped it - onerror
+   removes it and the drawn emblem shows through, so nothing renders empty. */
+.em{position:relative; display:block}
+.em__svg, .em__img{
+  position:absolute; inset:0;
+  inline-size:100%; block-size:100%;
+}
+.em__img{object-fit:contain}
+/* Set by the image's own load handler, never by the markup, so the drawn
+   emblem is only dropped once there is something to drop it for. */
+.em.is-art .em__svg{display:none}
+
 /* The unit. Real information, and it stops the plate reading as empty. */
 .op__ctu{
-  position:absolute; top:9px; left:11px;
+  position:absolute; top:9px; left:11px; z-index:2;
+  text-shadow:0 1px 3px rgba(6,8,12,.9);
   font:700 8px/1 var(--font-body); letter-spacing:.2em;
   text-transform:uppercase;
   color:var(--text-mute); pointer-events:none;
@@ -423,12 +469,20 @@ img{max-width:100%}
 }
 .op[data-side="DEF"] .op__ctu{left:auto; right:11px; text-align:end}
 
+/* Centred, low, and about half the card wide, matching the live operator grid.
+   Sized in container units so the proportion holds from the two-column phone
+   layout up to six columns on a laptop. The dark shadow is for legibility:
+   the badge now sits on a photograph, not a flat gradient. */
 .op__emblem{
-  position:absolute; bottom:16px; left:11px;
-  inline-size:42px; block-size:42px; pointer-events:none;
-  filter:drop-shadow(0 0 7px hsl(var(--op-hue) 85% 52% / .40));
+  position:absolute; z-index:2; pointer-events:none;
+  inset-block-start:55%; inset-inline-start:50%;
+  transform:translateX(-50%);
+  inline-size:clamp(40px,49cqw,86px); block-size:clamp(40px,49cqw,86px);
+  filter:drop-shadow(0 0 9px hsl(var(--op-hue) 85% 52% / .34))
+         drop-shadow(0 2px 5px rgba(6,8,12,.9));
 }
-.op[data-side="DEF"] .op__emblem{left:auto; right:11px}
+
+/* Centred on both sides now, so there is no mirrored position to undo. */
 /* Scoped to the classes, not to the card, because the same emblem markup is
    reused in the confirm sheet and on the confirmation screen. */
 .em-shape{
@@ -527,6 +581,9 @@ img{max-width:100%}
       linear-gradient(158deg,#252C3A 0%,#171C27 46%,#10141C 100%);
   }
   .op:not([data-state="taken"]) .op__btn:hover .em-shape{stroke:hsl(var(--op-hue) 70% 70% / 1)}
+  .op:not([data-state="taken"]):not([data-state="closed"]) .op__btn:hover .op__art{
+    filter:brightness(1.1) saturate(1.08);
+  }
   .op:not([data-state="taken"]) .op__btn:hover .op__idx{-webkit-text-stroke-color:rgba(232,236,242,.22)}
 }
 .op__btn:active{transform:translateY(0) scale(.985); filter:brightness(1.08)}
@@ -570,6 +627,10 @@ img{max-width:100%}
   background:repeating-linear-gradient(45deg, rgba(232,236,242,.075) 0 2px, transparent 2px 7px);
   mask-image:none; -webkit-mask-image:none;
 }
+.op[data-state="taken"] .op__art{filter:saturate(.12) brightness(.52) contrast(.95)}
+.op[data-state="taken"] .em__img{filter:saturate(.12) brightness(.7)}
+.op[data-state="closed"] .op__art{filter:saturate(.2) brightness(.6)}
+.op[data-state="mine"] .op__art{filter:saturate(1.06) brightness(1.06)}
 .op[data-state="taken"] .op__plate::after{background:linear-gradient(225deg,var(--line-strong) 0 1.5px,transparent 1.5px)}
 .op[data-side="DEF"][data-state="taken"] .op__plate::after{background:linear-gradient(135deg,var(--line-strong) 0 1.5px,transparent 1.5px)}
 .op[data-state="taken"] .op__btn{cursor:not-allowed; box-shadow:inset 0 1px 0 rgba(0,0,0,.6)}
@@ -634,11 +695,34 @@ img{max-width:100%}
   all:unset; cursor:pointer; flex:0 0 auto; margin-inline-start:auto;
   inline-size:44px; block-size:44px; display:grid; place-items:center;
   color:var(--text-mute); border:1px solid var(--line-2);
+  /* Opaque on purpose. This button sits over the operator portrait, and a
+     transparent 44px control whose icon has to fight a photograph is the kind
+     of thing that works on the operator you tested and fails on the next one. */
+  background:var(--surface-2);
 }
 @media (hover:hover) and (pointer:fine){
   .sheet__close:hover{color:var(--text-hi); background:var(--surface-3)}
 }
-.sheet__emblem{flex:0 0 auto; inline-size:56px; block-size:56px}
+.sheet__emblem{flex:0 0 auto; inline-size:56px; block-size:56px; z-index:1}
+
+/* Backdrop, not decoration for its own sake: it confirms at a glance that the
+   sheet is about the operator the guest actually tapped. */
+.sheet__head{position:relative}
+.sheet__art{
+  position:absolute; z-index:0; pointer-events:none;
+  inset-block:0; inset-inline-end:52px;
+  /* Both block insets AND an explicit height. A replaced element with top and
+     bottom set does not stretch between them - it falls back to its intrinsic
+     height, which for these renders is 500px, and the portrait then hung eight
+     times past the head and over the stat list. */
+  inline-size:120px; block-size:100%;
+  object-fit:cover; object-position:50% 6%;
+  opacity:.30;
+  mask-image:linear-gradient(255deg,#000 0 22%,transparent 82%);
+  -webkit-mask-image:linear-gradient(255deg,#000 0 22%,transparent 82%);
+}
+.sheet__head > div{position:relative; z-index:1}
+.sheet__close{position:relative; z-index:2}
 
 .dl{
   display:grid; grid-template-columns:auto 1fr; gap:8px 16px;
@@ -704,8 +788,23 @@ img{max-width:100%}
   mask-image:linear-gradient(180deg,#000,transparent 80%);
   -webkit-mask-image:linear-gradient(180deg,#000,transparent 80%);
 }
-.done__row{position:relative; display:flex; align-items:center; gap:16px; flex-wrap:wrap}
+.done__row{position:relative; z-index:1; display:flex; align-items:center; gap:16px; flex-wrap:wrap}
 .done__emblem{inline-size:64px; block-size:64px; flex:0 0 auto}
+
+/* Anchored to the trailing edge so it never sits under the name, which is the
+   thing the guest is actually here to read. */
+.done__art{
+  position:absolute; z-index:0; pointer-events:none;
+  inset-block:0; inset-inline-end:0;
+  inline-size:min(46%,208px); block-size:100%;
+  object-fit:cover; object-position:50% 16%;
+  opacity:.42;
+  mask-image:linear-gradient(270deg,#000 0 26%,transparent 92%);
+  -webkit-mask-image:linear-gradient(270deg,#000 0 26%,transparent 92%);
+}
+@media (max-width:439px){
+  .done__art{inline-size:min(52%,168px); opacity:.30}
+}
 .done__name{
   margin:0; font:800 clamp(38px,12vw,64px)/.88 var(--font-display); font-stretch:62.5%;
   text-transform:uppercase; color:var(--text-hi);
@@ -907,7 +1006,8 @@ footer.foot{
   <main class="wrap done" id="doneView" hidden>
     <div class="done__card" id="doneCard">
       <div class="done__row">
-        <svg class="done__emblem" id="doneEmblem" viewBox="0 0 48 48" aria-hidden="true"></svg>
+        <img class="done__art" id="doneArt" alt="" width="300" height="500" decoding="async" hidden>
+        <span class="done__emblem em" id="doneEmblem" aria-hidden="true"></span>
         <div>
           <p class="sheet__eyebrow" style="margin:0 0 4px">Your operator</p>
           <h1 class="done__name" id="doneName">—</h1>
@@ -960,8 +1060,9 @@ footer.foot{
   </main>
 
   <footer class="foot wrap">
-    Not affiliated with or endorsed by Ubisoft. Operator names are used to identify
-    characters from the game; all artwork here is original.
+    Not affiliated with or endorsed by Ubisoft. Operator names, artwork and
+    gameplay statistics are the property of Ubisoft Entertainment, used here
+    without permission for a private party. Nothing here is for sale.
   </footer>
 </div>
 
@@ -1067,6 +1168,30 @@ function pipsHTML(label, n, mod, spoken){
   for (let i = 1; i <= 3; i++) out += '<span class="pip' + (i <= n ? ' is-on' : '') + '" aria-hidden="true"></span>';
   return out + '</span>';
 }
+/* Where the artwork lives, relative to the page. Both folders ship next to
+   index.html; see docs/SETUP.md, because copying the page without them is the
+   one deploy mistake that is easy to make. */
+const ART_DIR   = 'img/op/';
+const BADGE_DIR = 'img/badge/';
+
+/* The badge over the drawn emblem. See the .em rules for why both are here. */
+function emblemHTML(op, cls, lazy){
+  return '<span class="em ' + (cls || '') + '" aria-hidden="true">' +
+           emblemSVG(op, 'em__svg') +
+           '<img class="em__img" src="' + BADGE_DIR + esc(op.id) + '.webp" alt="" ' +
+                'decoding="async"' + (lazy ? ' loading="lazy"' : '') +
+                ' onload="this.parentNode.classList.add(\'is-art\')"' +
+                ' onerror="this.remove()">' +
+         '</span>';
+}
+
+function artHTML(op, cls, lazy){
+  return '<img class="' + cls + '" src="' + ART_DIR + esc(op.id) + '.webp" alt="" ' +
+              'width="300" height="500" decoding="async"' +
+              (lazy ? ' loading="lazy"' : '') +
+              ' onerror="this.remove()">';
+}
+
 function emblemSVG(op, cls){
   return '<svg class="' + (cls || '') + '" viewBox="0 0 48 48" aria-hidden="true" focusable="false" ' +
          'style="--op-hue:' + hueFor(op.name, op.side) + '">' +
@@ -1239,9 +1364,10 @@ function buildGrid(){
         'style="--op-hue:' + hueFor(op.name, op.side) + '; container-type:inline-size">' +
       '<button class="op__btn" type="button" aria-pressed="false">' +
         '<span class="op__plate" aria-hidden="true">' +
+          artHTML(op, 'op__art', true) +
           '<span class="op__idx">' + idx + '</span>' +
           '<span class="op__ctu">' + esc(op.ctu) + '</span>' +
-          emblemSVG(op, 'op__emblem') +
+          emblemHTML(op, 'op__emblem', true) +
         '</span>' +
         '<span class="op__name-plate">' +
           '<span class="op__rail" aria-hidden="true"></span>' +
@@ -1357,7 +1483,25 @@ function paintDone(c){
   if (!op) return;
   const card = $('#doneCard');
   card.dataset.side = op.side;
-  $('#doneEmblem').outerHTML = emblemSVG(op, 'done__emblem').replace('<svg ', '<svg id="doneEmblem" ');
+  // innerHTML on a wrapper that stays put, rather than replacing the node and
+  // having to re-inject its id every time.
+  const doneEm = $('#doneEmblem');
+  doneEm.classList.remove('is-art');
+  doneEm.innerHTML =
+    emblemSVG(op, 'em__svg') +
+    '<img class="em__img" src="' + BADGE_DIR + esc(op.id) + '.webp" alt="" ' +
+         'decoding="async" onload="this.parentNode.classList.add(\'is-art\')" ' +
+         'onerror="this.remove()">';
+  const doneArt = $('#doneArt');
+  const wantArt = ART_DIR + op.id + '.webp';
+  // Guard the assignment. This runs on every board change, and re-setting the
+  // same src is a fresh request - which, when the file is missing, means a 404
+  // every few seconds for as long as the guest sits on this screen.
+  if (doneArt.getAttribute('src') !== wantArt){
+    doneArt.hidden = false;
+    doneArt.onerror = () => { doneArt.hidden = true; };
+    doneArt.setAttribute('src', wantArt);
+  }
   $('#doneName').textContent = op.name;
   $('#doneSquad').textContent = (op.side === 'ATT' ? 'Attack squad' : 'Defense squad');
   $('#doneJob').innerHTML = '<b>' + esc(op.gadget) + '</b> &mdash; ' + esc(op.nerf) + '.';
@@ -1405,7 +1549,8 @@ function openSheet(opId){
     '<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="shName" ' +
          'aria-describedby="shWarn" data-side="' + op.side + '">' +
       '<div class="sheet__head">' +
-        emblemSVG(op, 'sheet__emblem') +
+        artHTML(op, 'sheet__art', false) +
+        emblemHTML(op, 'sheet__emblem') +
         '<div style="min-width:0">' +
           '<p class="sheet__eyebrow">' + esc(sideWord) + ' &middot; ' + esc(op.ctu) + '</p>' +
           '<h2 class="sheet__name" id="shName">' + esc(op.name) + '</h2>' +
