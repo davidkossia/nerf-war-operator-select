@@ -1123,11 +1123,6 @@ const LS = {
   demo:  'r6.demoClaims',
   demoV: 'r6.demoVersion'
 };
-/* The token and nonce belong to ONE guest. Keyed globally, a second guest on
-   the same phone inherits the first guest's credentials: the release button
-   appears for them and either fails or, worse, acts on the wrong claim. */
-const tokenKey = (pid) => 'r6.token.' + (pid || '_');
-const nonceKey = (pid) => 'r6.nonce.' + (pid || '_');
 
 /* ══════════════════════════════════════════════════════════════════════
    SMALL HELPERS
@@ -1230,16 +1225,6 @@ const myClaim = () => {
   for (const id in state.claims) if (state.claims[id].playerId === state.me) return state.claims[id];
   return null;
 };
-function nonce(){
-  let n = store(nonceKey(state.me));
-  if (!n) {
-    n = 'n-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
-    store(nonceKey(state.me), n);
-  }
-  return n;
-}
-const myToken  = () => store(tokenKey(state.me)) || '';
-const setToken = (t) => store(tokenKey(state.me), t || null);
 
 /* ══════════════════════════════════════════════════════════════════════
    TRANSPORT
@@ -1329,14 +1314,14 @@ function demoApi(p){
     if (db[p.op]) return { ok:false, error:'OPERATOR_TAKEN', detail:op.name + ' is gone.', claim:db[p.op] };
     db[p.op] = { op:op.id, opName:op.name, player:who.name, playerId:who.id, side:op.side, at:new Date().toISOString() };
     if (!demoSave(db)) return STORAGE_BLOCKED;
-    return { ok:true, claim:db[p.op], token:'demo-token' };
+    return { ok:true, claim:db[p.op] };
   }
   if (p.action === 'swap'){
     const op = OPERATORS.find(o => o.id === p.op);
     const mine = list().find(c => c.playerId === p.playerId);
     if (!op) return { ok:false, error:'UNKNOWN_OP', detail:'No such operator.' };
     if (!mine) return { ok:false, error:'NO_CLAIM', detail:'You do not hold an operator yet.' };
-    if (mine.op === op.id) return { ok:true, unchanged:true, claim:mine, token:'demo-token' };
+    if (mine.op === op.id) return { ok:true, unchanged:true, claim:mine };
     if (db[op.id]){
       return { ok:false, error:'OPERATOR_TAKEN',
                detail:op.name + ' is gone. You still hold ' + mine.opName + '.',
@@ -1346,7 +1331,7 @@ function demoApi(p){
     delete db[mine.op];
     db[op.id] = { op:op.id, opName:op.name, player:who.name, playerId:who.id, side:op.side, at:new Date().toISOString() };
     if (!demoSave(db)) return STORAGE_BLOCKED;
-    return { ok:true, claim:db[op.id], released:mine, token:'demo-token' };
+    return { ok:true, claim:db[op.id], released:mine };
   }
   if (p.action === 'release'){
     const mine = list().find(c => c.playerId === p.playerId);
@@ -1670,8 +1655,8 @@ async function doClaim(op, retry){
   state.busy = true;
 
   // A retry always goes down the claim path. If the first attempt's swap did
-  // land, the server sees this guest already holding the target and returns it
-  // with the token; if it did not land, they still hold what they had.
+  // land, the server sees this guest already holding the target and says so;
+  // if it did not land, they still hold what they had.
   const from = (state.swapping && !retry) ? myClaim() : null;
   const ctaText = from ? 'Swap to ' + op.name : 'Lock in ' + op.name;
   const go0 = $('#shGo');
@@ -1685,9 +1670,8 @@ async function doClaim(op, retry){
   let res;
   try {
     res = from
-      ? await api({ action:'swap', code: state.code, playerId: state.me, op: op.id,
-                    token: myToken(), nonce: nonce() }, T_WRITE)
-      : await api({ action:'claim', code: state.code, playerId: state.me, op: op.id, nonce: nonce() }, T_WRITE);
+      ? await api({ action:'swap', code: state.code, playerId: state.me, op: op.id }, T_WRITE)
+      : await api({ action:'claim', code: state.code, playerId: state.me, op: op.id }, T_WRITE);
   } catch (err) {
     res = { ok:false, error:'NETWORK', detail:'Something went wrong sending that. Try again.' };
   } finally {
@@ -1704,10 +1688,9 @@ async function doClaim(op, retry){
   const go = (sheetOpen === op.id) ? $('#shGo') : null;
 
   // An ok with no claim in it is not an answer to the question we asked. Ask
-  // once more rather than guess. The retry is always a claim, never a swap: the
-  // nonce this phone stores is stable, so if the first attempt did land the
-  // server recognises this device and hands back the matching release token,
-  // and if it did not land this is simply the pick, tried again.
+  // once more rather than guess. The retry is always a claim, never a swap: if
+  // the first attempt did land the server answers with the guest's claim, and
+  // if it did not land this is simply the pick, tried again.
   if (res.ok && !res.claim && !retry) return doClaim(op, true);
 
   if (res.ok && !res.claim){
@@ -1727,7 +1710,6 @@ async function doClaim(op, retry){
   }
 
   if (res.ok){
-    if (res.token) setToken(res.token);
     // A swap frees the old operator. Drop it locally so the board is right
     // immediately, rather than waiting for the next poll.
     if (res.released) delete state.claims[res.released.op];
@@ -1780,9 +1762,9 @@ async function doClaim(op, retry){
 
   if (res.error === 'PLAYER_HAS_OPERATOR'){
     // Only reachable on the claim path, and it means this device is out of
-    // date. Adopt the server's answer and send them to their confirmation.
+    // date, typically because the guest picked on another device. Adopt the
+    // server's answer and send them to their confirmation.
     if (res.claim) state.claims[res.claim.op] = res.claim;
-    if (res.token) setToken(res.token);
     state.swapping = false;
     closeSheet(); paint(); show('done');
     say(res.claim && res.claim.op === op.id
@@ -1906,10 +1888,6 @@ async function doRelease(){
   const mine = myClaim();
   if (!mine) return;
   const opName = mine.opName || mine.op;
-  if (!myToken()){
-    window.alert('This device cannot give up ' + opName + ', because it is not the one that claimed it. Ask the host to free it for you.');
-    return;
-  }
   if (!window.confirm('Give up ' + opName + '? Someone else can take them the moment you do.')) return;
 
   state.busy = true;
@@ -1918,7 +1896,7 @@ async function doRelease(){
   if (btn){ btn.disabled = true; btn.textContent = 'Releasing…'; }
 
   let res;
-  try { res = await api({ action:'release', playerId: state.me, token: myToken() }, T_WRITE); }
+  try { res = await api({ action:'release', code: state.code, playerId: state.me }, T_WRITE); }
   catch (err) { res = { ok:false, detail:'Something went wrong. Try again.' }; }
   finally {
     state.busy = false;
@@ -1928,7 +1906,6 @@ async function doRelease(){
   if (res.ok){
     delete state.claims[mine.op];
     state.count = Object.keys(state.claims).length;
-    setToken(null);
     setSwapping(false);
     paint(); show('board');
     say(opName + ' released.');
@@ -1938,7 +1915,6 @@ async function doRelease(){
     if (myClaim()){
       window.alert('That took too long and did not go through. You still have ' + opName + '.');
     } else {
-      setToken(null);
       setSwapping(false);
       show('board');
       say(opName + ' released.');
@@ -2194,9 +2170,8 @@ function wire(){
   $('#rosterBack').addEventListener('click', () => show(myClaim() ? 'done' : 'board'));
   $('#viewBoardBtn').addEventListener('click', () => show('board'));
   $('#switchGuest').addEventListener('click', () => {
-    // Hand the phone to the next guest. The token and nonce stay behind under
-    // their owner's key, so whoever claimed on this device keeps the ability
-    // to release even after somebody else has signed in and out.
+    // Hand the phone to the next guest. Nothing about the last guest's pick is
+    // stored on the device, so there is nothing to clean up beyond the sign-in.
     if (state.busy) return;
     state.me = '';
     state.code = '';
